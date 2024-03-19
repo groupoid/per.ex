@@ -21,8 +21,8 @@ exp -> '?' : {hole} .
 exp -> U : {'U'} .
 exp -> app : '$1' .
 exp -> 'inductive' '{' sum '}' : {inductive,lists:flatten(uncons('$3'))} .
-constructor -> id tele : {ctor,'$1','$2'} .
-constructor -> id tele ':' exp : {ctor,'$1','$2','$4'} .
+constructor -> id tele : {element,'$1','$2'} .
+constructor -> id tele ':' exp : {interval,'$1','$2','$4'} .
 sum -> '$empty' : [] .
 sum -> constructor : '$1' .
 sum -> constructor '|' sum : ['$3'|'$1'] .

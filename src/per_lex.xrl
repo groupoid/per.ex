@@ -26,7 +26,7 @@ Pipe    = \|
 
 Rules.
 
-(def|do|end|import|module|U|V) : {token,{list_to_atom(TokenChars),TokenLine}}.
+(def|inductive|do|end|import|module|U) : {token,{list_to_atom(TokenChars),TokenLine}}.
 ({Curly}|{Parens}|{Angle}|{Square}|{Colon}) : {token,{list_to_atom(TokenChars),TokenLine}}.
 ({Dot}||{Comma}|{Eq}|{Assign}|{Colon}|{Semicolon}|{Pipe}|{Et}) : {token,{list_to_atom(TokenChars),TokenLine}}.
 {Arrow} : {token, {arrow, TokenLine}}.

@@ -29,7 +29,7 @@ sum -> constructor '|' sum : ['$3'|'$1'] .
 app -> exp exp : {app,'$1','$2'} .
 Rootsymbol file .
 Nonterminals file vars optic content tele exp app line sum constructor .
-Terminals id lam arrow forall sigma 'def' 'do' 'U' 'module' 'inductive' 'import' '|' '.' ',' '(' ')' '<' '>' '[' ']' '{' '}' '?' ':=' ':' .
+Terminals id lam arrow forall sigma 'def' 'do' 'U' 'module' 'inductive' 'import' '|' '.' ',' '(' ')' '{' '}' '?' ':=' ':' .
 Left 100 app .
 Left 10 tele .
 Right 10 exp .

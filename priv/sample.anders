@@ -1,11 +1,13 @@
 module sample do
 
-def quot : U := inductive { }
+def empty : U := inductive { }
 
 def L¹ (A : U) : U := inductive { nil | cons (head: A) (tail: L¹ A) }
 def S¹         : U := inductive { base | loop : Path S¹ base base }
 
 def quot (A: U) (R : A -> A -> U) : U
  := inductive { quotient (a: A)
-              | identification (a b: A) (r: R a b) : Path (quot A R) (quotient a) (quotient b)
+              | identification (a b: A) (r: R a b)
+              : Path (quot A R) (quotient a) (quotient b)
               }
+

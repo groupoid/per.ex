@@ -2,7 +2,7 @@ defmodule Per.Mixfile do
   use Mix.Project
   def project do
     [ app: :per,
-      version: "1.0.0",
+      version: "1.0.1",
       elixir: ">= 1.9.0",
       description: "Groupoid Infinity Per Programming Language",
       compilers: [:leex,:yecc] ++ Mix.compilers(),

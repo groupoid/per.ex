@@ -1,8 +1,6 @@
 Per: MLTT /w Calculus of Inductive Constructions
 ================================================
 
-<img width="519" alt="Screenshot 2024-03-20 at 09 56 20" src="https://github.com/groupoid/per/assets/144776/ec78d5ed-e3e1-4315-a436-46258f0e8530">
-
 CIC
 ---
 

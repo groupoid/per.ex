@@ -253,9 +253,24 @@ via β-reduction or inductive elimination, then `ctx ⊢ t' : T`.
 
 ### Case Branch `apply_case env ctx d p cases case ty args`
 
+Apply a case branch to constructor arguments.
+
+This function realizes CIC’s ι-reduction for inductive eliminators [5], where a case branch is applied to constructor arguments, including recursive hypotheses. For Nat’s succ in plus, ty = Πn:Nat.Nat, case = λk.λih.succ ih, and args = [n]. The recursive check (a = Inductive d) triggers for n : Nat, computing ih = Elim(Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], n), ensuring succ ih : Nat. The nested apply_term handles multi-argument lambdas (e.g., k and ih), avoiding explicit uncurrying, while substitution preserves typing per CIC’s rules. Complexity is O(n·m) (term size n, recursive reduction depth m), with debugging prints tracing hypothesis generation, critical for verifying induction steps (e.g., plus m (succ n) → succ (plus m n)).
+
+**Theorem**. Case application is sound (cf. [8],
+Section 4.5, Elimination Typing; [1], Section 5, Elimination Rule).
+If `case : Πx:A.P(c x)` and `args` match `A`, then `apply_case env ctx d p cases case ty args`
+yields a term of type `P(c args)`.
+
 ### Normalization `normalize env ctx t`
 
+This function fully reduces a term t to its normal form by iteratively applying one-step reductions via reduce until no further changes occur, ensuring termination for well-typed terms.
 
+This function implements strong normalization, a cornerstone of ITT [1] and CIC [8], where all reduction sequences terminate. The fixpoint iteration relies on reduce’s one-step reductions (β for lambdas, ι for inductives), with equal acting as the termination oracle. For `plus 2 2`, it steps through `Elim (Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], succ (succ zero)) → succ (Elim(...)) → succ (succ (Elim(...))) → succ succ succ succ zero`, terminating at a constructor form. Complexity is O(n·m) (term size n, reduction steps m), where m is bounded by the term’s reduction length, guaranteed finite by CIC’s strong normalization [8, via 2]. Debugging prints are indispensable, tracing the path from `2 + 2 to 4`, aligning with CIC’s emphasis on computational transparency. The lack of explicit η-expansion or full cumulativity slightly weakens equality compared to Coq’s CIC, but termination holds.
+
+**Theorem**. Normalization terminates (cf. [1], Section III, Normalization Theorem; [8],
+Section 4.6, Strong Normalization via CoC). Every well-typed term in the system has a
+ormal form under β- and ι-reductions.
 
 ## Properties
 

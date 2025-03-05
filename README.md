@@ -143,6 +143,17 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
   types without altering propositional truths [Pfenning & Paulin-Mohring, 1989]. Inductive types like Nat satisfy
   initiality—every algebra morphism from Nat to another structure is uniquely defined—ensuring categorical universality [Dybjer, 1997].
 
+## Test
+
+```
+$ ocamlopt -o per induction.ml
+$ ./per
+Nat length: elim_Nat Π(_ : NatEven). NatEven [zero; λk. λih. nsucc ih] succ succ zero
+ToEven: elim_NatEven Π(_ : NatEven). NatEven [nzero; λk. λih. nsucc k] succ succ zero
+List length: elim_List Π(_ : List Type0). Nat [zero; λx. λxs. λih. succ ih] cons zero cons succ zero nil
+Sample list: cons zero cons succ zero nil
+```
+
 ## CIC
 
 [1]. <a href="https://inria.hal.science/hal-01094195/document">Christine Paulin-Mohring. Introduction to the Calculus of Inductive Constructions.</a><br>

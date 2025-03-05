@@ -1,0 +1,12 @@
+[package]
+name = "per"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+lalrpop = "0.20.2"
+
+[dependencies]
+regex = "1.10"
+either = "1.13.0"
+lalrpop-util = { version = "0.20.2", features = ["lexer", "unicode"] }

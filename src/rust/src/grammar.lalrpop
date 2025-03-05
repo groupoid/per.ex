@@ -1,0 +1,35 @@
+use crate::ast::Per;
+use crate::ast::Pattern;
+grammar;
+
+// Copyright (c) Groupoid Infinity 2024 Per MLTT-72
+
+// PER = U | Π ( V : PER ) , PER | PER PER
+//     | V | λ ( V : PER ) , PER | ( PER )
+//         | Σ ( V : PER ) , PER | PER , PER
+
+Name: String = { r"[a-zA-Z_][a-zA-Z_\d]*" => <>.to_string() };
+Variable: Per = { <n:Name> => Per::Var(n), };
+Universe: Per = { <n:r"\*[\d]+"> => Per::Type(u32::from_str_radix(&n[1..],10).unwrap()),
+                  <n:r"\*"> => Per::Type(0), };
+
+Vars: Vec<Pattern> = {
+   <n:Name> => vec![Pattern::Var(n)],
+   <n:Name> <v:Vars> => { let mut r = v.clone(); r.append(&mut vec![Pattern::Var(n)]); r }, };
+
+Telescope: Vec<(Pattern,Per)> = {
+   "(" <v:Vars> ":" <t:Expr> ")" => vec![(v[0].clone(),t)],
+   "(" <v:Vars> ":" <t:Expr> ")" <x:Telescope> => { let mut r = x.clone(); r.append(&mut vec![(v[0].clone(),t)]); r } };
+
+Lambda: Per = { "λ" "(" <v:Vars> ":" <t:Expr> ")" "," <e:Exp1> => Per::Lambda(Box::new(v[0].clone()),Box::new(e)), };
+Forall: Per = { "Π" "(" <v:Vars> ":" <t:Expr> ")" "," <e:Exp1> => Per::Pi(Box::new(v[0].clone()),Box::new(t), Box::new(e)), };
+Sigma:  Per = { "Σ" "(" <v:Vars> ":" <t:Expr> ")" "," <e:Exp1> => Per::Sigma(Box::new(v[0].clone()),Box::new(t), Box::new(e)), };
+
+// LR(1) Parsing Scheme
+
+Exp1: Per = { Lambda, Forall, Sigma, Exp2 };
+Exp2: Per = { <l:Exp2> <r:Exp3> => Per::Application(Box::new(l),Box::new(r)), Exp3 };
+Exp3: Per = { Universe, Variable, "(" <e:Exp4> ")" => e, };
+Exp4: Per = { <l:Exp1> "," <r:Exp4> => Per::Pair(Box::new(l),Box::new(r)), Exp1 };
+
+pub Expr: Per = { Exp1 };

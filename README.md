@@ -3,26 +3,37 @@ Per Martin-Löf: Calculus of Inductive Constructions
 
 ## Abstract
 
-Type theory lies at the heart of modern functional programming, bridging computation and logic.
-In this pearl, we present Per, a type checker for Classical Martin-Löf Type Theory (MLTT) with
-General Inductive Types, implemented in OCaml. Per marries the elegance of dependent types—Pi,
-Sigma, Identity, and Inductive types—with the practicality of bidirectional type checking and
-normalization. Through iterative refinements, we explore how OCaml’s expressive power yields
-a concise yet robust system, normalizing terms like `length [zero; succ zero]` into `succ (succ zero)`.
-We conclude with meta-theorems affirming Per’s theoretical sheen, from soundness to initiality.
+This article presents an implementation of a dependently-typed
+lambda calculus with inductive types in OCaml, drawing inspiration
+from Martin-Löf’s Intuitionistic Type Theory (ITT) [1] and the
+Calculus of Inductive Constructions (CIC) [2]. The system supports
+type inference, type checking, reduction, and normalization, with
+a focus on natural numbers (Nat) and lists (List) as example
+inductive types. Below, we provide a detailed teardown of each
+core function, grounded in formal theorems and referencing
+seminal works, followed by technical insights into their design
+and implementation.
 
 ## Intro
 
-Martin-Löf Type Theory (MLTT) is a computational jewel, its dependent types encoding rich
-specifications within programs. The Calculus of Inductive Constructions (CIC), as realized in Coq,
-extends MLTT with general inductive types—think Nat or List A. Implementing a type checker for
-such a system is both a challenge and a delight, demanding precision and creativity.
+The system defines terms `term`, inductive types `inductive`,
+environments `env`, and contexts `context` to represent
+a dependent type theory. These structures align with the
+formal syntax of CIC, as described by Coquand and Huet [2].
 
-Per—short for “Per Martin-Löf”—is our OCaml-crafted type checker for this classical realm.
-From Pi-types to mutual inductives, from one-step reduction to full normalization,
-Per evolved through a series of polishing steps. This pearl narrates that journey,
-showcasing a system that type-checks and normalizes with elegance.
-We’ll cap it with meta-theorems, linking our implementation to the deep waters of type-theoretic guarantees.
+### Types
+
+* `term`: Includes variables, universes, Pi types, lambda abstractions,
+  applications, Sigma types, pairs, identity types, inductive types,
+  constructors, and eliminators.
+* `inductive`: Captures parameterized inductive definitions with constructors and mutual recursion groups.
+* `env` and `context`: Store global inductive definitions and local variable bindings, respectively.
+
+**Technical Insight**: The term type encodes a pure type system (PTS)
+extended with inductive constructs, supporting full
+dependent types (e.g., Pi and Sigma). The inductive record mirrors
+CIC’s inductive schemas, allowing parameterized types like List A,
+while mutual_group hints at potential mutual recursion, though not fully exploited here.
 
 ## Syntax
 
@@ -32,7 +43,7 @@ type term =
   | Var of name
   | Universe of level
   | Pi of name * term * term
-  | Lam of name * term
+  | Lam of name * term * term
   | App of term * term
   | Sigma of name * term * term
   | Pair of term * term
@@ -45,87 +56,32 @@ type term =
   | Elim of inductive * term * term list * term  (* Elim D P cases t *)
 ```
 
-Examples:
-
-```
-let nat_def = {
-  name = "Nat";
-  params = [];
-  level = 0;
-  constrs = [
-    (1, Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] });
-    (2, Pi ("n", Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] },
-           Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] }))
-  ];
-  mutual_group = ["Nat"]
-}
-```
-
-```
-let list_length =
-  Lam ("l",
-    Elim (list_def (Universe 0),
-          Pi ("_", list_ind, nat_ind),
-          [Constr (1, nat_def, []); Lam ("x", Lam ("xs", Lam ("ih", Constr (2, nat_def, [Var "ih"]))))],
-          Var "l"))
-```
-
-## Bidirectional Inference and Checking
-
-Per’s type checker pirouettes between `infer` and `check`, a mutual recursion that OCaml renders with grace:
-
-```
-let rec infer (env : env) (ctx : context) (t : term) : term =
-  match t with
-  | Var x -> (match lookup_var ctx x with Some ty -> ty | None -> raise (TypeError ("Unbound: " ^ x)))
-  | App (f, arg) ->
-      let f_ty = infer env ctx f in
-      (match f_ty with
-       | Pi (x, a, b) -> check env ctx arg a; subst x arg b
-       | _ -> raise (TypeError "Application requires Pi type"))
-  | Elim (d, p, cases, t') ->
-      let d_applied = apply_inductive d (List.map snd d.params) in
-      check env ctx t' d_applied;
-      let p_ty = List.fold_right (fun (n, p_ty) acc -> Pi (n, p_ty, acc)) d.params (Pi ("x", d_applied, Universe d.level)) in
-      check env ctx p p_ty;
-      List.iteri (fun j case ->
-        let cj = List.assoc (j + 1) d.constrs in
-        let cj_subst = List.fold_left2 (fun acc (n, _) arg -> subst n arg acc) cj d.params (List.map snd d.params) in
-        check env ctx case (replace_d_with_p cj_subst p)
-      ) cases;
-      App (p, t')
-  (* ... *)
-
-and check (env : env) (ctx : context) (t : term) (ty : term) : unit =
-  match t, ty with
-  | Lam (x, body), Pi (y, a, b) -> check env (add_var ctx x a) body b
-  | _, _ -> let inferred = infer env ctx t in if not (equal env ctx inferred ty) then raise (TypeError "Type mismatch")
-```
-
-The Elim case shines, orchestrating induction across mutual types with precision.
-
-## Normalization
-
-Normalization is Per’s polishing cloth:
-
-```
-let rec reduce (env : env) (ctx : context) (t : term) : term =
-  match t with
-  | App (Lam (x, body), arg) -> subst x arg body
-  | Elim (d, p, cases, Constr (j, d', args)) when List.mem d'.name d.mutual_group ->
-      let d_target = List.find (fun (_, def) -> def.name = d'.name) env |> snd in
-      let cj = List.nth cases (j - 1) in
-      let cj_ty = List.assoc j d_target.constrs in
-      let rec_args = collect_rec_args cj_ty args d_target in
-      subst_rec_args cj args rec_args
-  | _ -> t
-
-let rec normalize (env : env) (ctx : context) (t : term) : term =
-  let t' = reduce env ctx t in
-  if equal env ctx t t' then t else normalize env ctx t'
-```
-
 ## Semantics
+
+### Syntactic Equality `equal env ctx t1 t2`
+
+Structural equality of terms under an environment and context.
+
+The function implements judgmental equality with substitution to handle bound variables,
+avoiding explicit α-conversion by assuming fresh names (a simplification
+over full de Bruijn indices [3]). The recursive descent ensures congruence,
+but lacks normalization, making it weaker than CIC’s definitional equality,
+which includes β-reduction.
+
+**Base Cases**: Variables `Var x` are equal if names match; universes `Universe i` if levels are identical.
+**Resursive Cases**: `App (f, arg)` requires equality of function and argument.
+`Pi (x, a, b)` compares domains and codomains, adjusting for variable renaming via substitution.
+`Inductive d` checks name, level, and parameters.
+`Constr` and `Elim` compare indices, definitions, and arguments/cases.
+**Fallback**: Returns false for mismatched constructors.
+
+**Theorem**. Equality is reflexive, symmetric, and transitive modulo
+α-equivalence (cf. [1], Section 2). For `Pi (x, a, b)` and `Pi (y, a', b')`,
+equality holds if `a = a'` and `b[x := Var x] = b'[y := Var x]`,
+ensuring capture-avoiding substitution preserves meaning.
+
+
+## Properties
 
 Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-theorems for Classical MLTT with General Inductive Types, drawing from CIC’s lineage:
 

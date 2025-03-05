@@ -55,8 +55,6 @@ let rec apply_args (f : term) (args : term list) : term = match args with | [] -
 
 exception TypeError of string
 
-
-
 (* Substitution *)
 let rec subst (x : name) (s : term) (t : term) : term =
   match t with
@@ -330,8 +328,12 @@ let rec print_term (t : term) : unit =
         match d.name, j with
         | "Nat", 1 -> "zero"
         | "Nat", 2 -> "succ"
+        | "NatEven", 1 -> "nzero"
+        | "NatEven", 2 -> "nsucc"
         | "Even", 1 -> "ezero"
         | "Even", 2 -> "esucc"
+        | "List", 1 -> "nil"
+        | "List", 2 -> "cons"
         | _ -> Printf.sprintf "%s%d" d.name j
       in
       Printf.printf "%s" constr_name;
@@ -349,6 +351,7 @@ let rec print_term (t : term) : unit =
 
 
 (* Examples *)
+
 
 let nat_def = {
   name = "Nat";
@@ -399,14 +402,28 @@ let even_def = {
   mutual_group = ["NatEven"; "Even"]
 }
 
+let env_with_nat_list = [("Nat", nat_def), ("List", list_def (Universe 0))]
+let env_mutual        = [("NatEven", nat_even_def); ("Even", even_def); ("Nat", nat_def); ("List", list_def (Universe 0))]
 
 let nat_ind      = Inductive nat_def
+let list_ind     = Inductive (list_def (Universe 0))
 let nat_even_ind = Inductive nat_even_def
 let even_ind     = Inductive even_def
 
-let env_with_nat_list = [("Nat", nat_def), ("List", list_def)]
-let env_mutual        = [("NatEven", nat_even_def); ("Even", even_def)]
+let list_length =
+  Lam ("l",
+    Elim ((list_def (Universe 0)),
+          Pi ("_", list_ind, nat_ind),
+          [Constr (1, nat_def, []);  (* nil -> zero *)
+           Lam ("x", Lam ("xs", Lam ("ih", Constr (2, nat_def, [Var "ih"]))))], (* cons x xs ih -> succ ih *)
+          Var "l"))
 
+let sample_list =
+  Constr (2, list_def (Universe 0),  (* cons *)
+    [Constr (1, nat_def, []);        (* zero *)
+     Constr (2, list_def (Universe 0),  (* cons *)
+       [Constr (2, nat_def, [Constr (1, nat_def, [])]);  (* succ zero *)
+        Constr (1, list_def (Universe 0), [])])])         (* nil *)
 
 let plus =
   Lam ("m", Lam ("n",
@@ -416,7 +433,8 @@ let plus =
           Var "n"
     )))
 
-let plus_ty = Pi ("m", nat_ind, Pi ("n", nat_ind, nat_ind))
+let plus_ty =
+  Pi ("m", nat_ind, Pi ("n", nat_ind, nat_ind))
 
 let length =
   Lam ("n",
@@ -426,7 +444,6 @@ let length =
            Lam ("k", Lam ("ih", Constr (2, nat_even_def, [Var "ih"])))], (* succ k ih -> succ ih *)
           Var "n"))
 
-(* Mutual test: toEven : Nat -> NatEven *)
 let to_even =
   Lam ("n",
     Elim (nat_even_def,
@@ -436,27 +453,34 @@ let to_even =
           Var "n"))
 
 let test () =
-  try
-    check env_mutual empty_ctx plus plus_ty;
-    print_endline "Type checking succeeded!"
-  with
-  | TypeError msg -> print_endline ("Type error: " ^ msg)
 
-let test_normalize () =
-  let zero = Constr (1, nat_even_def, []) in
-  let one = Constr (2, nat_even_def, [zero]) in
-  let two = Constr (2, nat_even_def, [one]) in
-  let term = App (length, two) in
-  let normal = normalize env_mutual empty_ctx term in
-
-  Printf.printf "Length 2 normalized: ";
-  print_term normal;
+  (* Test Nat normalization *)
+  let zero = Constr (1, nat_def, []) in
+  let one  = Constr (2, nat_def, [zero]) in
+  let two  = Constr (2, nat_def, [one]) in
+  let nat_term = App (length, two) in
+  let nat_normal = normalize env_mutual empty_ctx nat_term in
+  Printf.printf "Nat length: ";
+  print_term nat_normal;
   print_endline "";
+
+  (* Test mutual recursion *)
   let even_term = App (to_even, two) in
   let even_normal = normalize env_mutual empty_ctx even_term in
-  Printf.printf "ToEven 2 normalized: ";
+  Printf.printf "ToEven: ";
   print_term even_normal;
+  print_endline "";
+
+  (* Test list length *)
+  let list_term = App (list_length, sample_list) in
+  let list_normal = normalize env_mutual empty_ctx list_term in
+  Printf.printf "List length: ";
+  print_term list_normal;
+  print_endline "";
+
+  (* Test raw sample list *)
+  Printf.printf "Sample list: ";
+  print_term sample_list;
   print_endline ""
 
-
-let _ = test_normalize ()
+let _ = test ()

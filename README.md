@@ -14,6 +14,23 @@ core function, grounded in formal theorems and referencing
 seminal works, followed by technical insights into their design
 and implementation.
 
+The implementation realizes a fragment of CIC,
+balancing expressiveness and decidability. The type system
+enforces universe consistency (via `check_universe`) and dependent
+elimination (via `check_elim`), ensuring soundness as per Martin-Löf’s
+formation, introduction, and elimination rules [1]. Substitution and
+reduction handle α-equivalence implicitly, trading off formal rigor
+for simplicity, while `infer` and `check` form a bidirectional core,
+optimizing type inference (O(n) in term size, assuming small contexts).
+Inductive types, inspired by Coquand’s work [2], support recursion
+through `Elim`, with apply_case encoding the induction principle via recursive calls.
+The lack of full cumulativity (e.g., `Type i <: Type (i + 1)`)
+and weak equality (no η-expansion) limits expressiveness compared
+to Coq, but the system proves `Nat.plus : Nat -> Nat -> Nat` and
+`Nat.elim : Π(x:Nat).Type0`, demonstrating practical utility.
+Debugging prints, while verbose, expose the system’s reasoning,
+aligning with Pierce’s emphasis on transparency in type checkers [4].
+
 ## Intro
 
 The system defines terms `term`, inductive types `inductive`,
@@ -68,17 +85,94 @@ over full de Bruijn indices [3]). The recursive descent ensures congruence,
 but lacks normalization, making it weaker than CIC’s definitional equality,
 which includes β-reduction.
 
-**Base Cases**: Variables `Var x` are equal if names match; universes `Universe i` if levels are identical.
-**Resursive Cases**: `App (f, arg)` requires equality of function and argument.
+* **Base Cases**: Variables `Var x` are equal if names match; universes `Universe i` if levels are identical.
+* **Resursive Cases**: `App (f, arg)` requires equality of function and argument.
 `Pi (x, a, b)` compares domains and codomains, adjusting for variable renaming via substitution.
 `Inductive d` checks name, level, and parameters.
 `Constr` and `Elim` compare indices, definitions, and arguments/cases.
-**Fallback**: Returns false for mismatched constructors.
+* **Fallback**: Returns false for mismatched constructors.
 
 **Theorem**. Equality is reflexive, symmetric, and transitive modulo
 α-equivalence (cf. [1], Section 2). For `Pi (x, a, b)` and `Pi (y, a', b')`,
 equality holds if `a = a'` and `b[x := Var x] = b'[y := Var x]`,
 ensuring capture-avoiding substitution preserves meaning.
+
+### Context Variables Lookup `lookup_var ctx x`
+
+Retrieve a variable’s type from the context.
+
+This linear search assumes a small context, which is inefficient
+for large ctx (O(n) complexity). A hash table (Second Lesson `per2.ml` of Tutorial)
+could optimize this to O(1), but the simplicity suits small-scale examples. Debugging
+output aids in tracing type errors, critical for dependent type
+systems where context mismatches are common.
+
+* Searches `ctx` for `(x, ty)` using `List.assoc`.
+* Returns `Some ty` if found, `None` otherwise.
+* Includes debugging output for transparency.
+
+**Theorem**: Context lookup is well-defined under uniqueness
+of names (cf. [1], Section 3). If `ctx = Γ, x : A, Δ`,
+then `lookup_var ctx x = Some A`.
+
+### Substitution Calculus `subst x s t`
+
+Substitute term `s` for variable `x` in term `t`.
+
+The capture-avoiding check `if x = y` prevents variable capture
+but assumes distinct bound names, a simplification over full
+renaming or de Bruijn indices. For Elim, substituting in the
+motive and cases ensures recursive definitions remain sound,
+aligning with CIC’s eliminator semantics.
+
+* `Var`: Replaces `x` with `s`, leaves others unchanged.
+* `Pi/Lam`: Skips substitution if bound variable shadows `x`, else recurses on domain and body.
+* `App/Constr/Elim`: Recurses on subterms.
+* `Inductive`: No substitution (assumes no free variables).
+
+**Theorem**. Substitution preserves typing (cf. [2], Lemma 2.1).
+If `Γ ⊢ t : T` and `Γ ⊢ s : A`, then `Γ ⊢ t[x := s] : T[x := s]`
+under suitable conditions on x.
+
+### Inductive Instantiation `apply_inductive d args`
+
+Instantiate an inductive type’s constructors with parameters.
+
+This function ensures type-level parametricity, critical for
+polymorphic inductives like List A. The fold-based substitution
+avoids explicit recursion, leveraging OCaml’s functional style,
+but assumes args are well-typed, deferring validation to infer.
+
+* Validates argument count against d.params.
+* Substitutes each parameter into constructor types using subst_param.
+
+**Theorem**: Parameter application preserves inductiveness (cf. [2], Section 4).
+If `D` is an inductive type with parameters `P`, then `D[P]` is
+well-formed with substituted constructors.
+
+### Type Inference `infer env ctx t`
+
+Infer the type of term `t` in context `ctx` and environment `env`.
+
+For `Pi` and `Lam`, universe levels ensure consistency
+(e.g., `Type i : Type (i + 1)`), while `Elim` handles induction,
+critical for dependent elimination. Debugging prints expose
+inference steps, vital for diagnosing failures in complex terms.
+
+### Check Universes `check_universe env ctx t`
+
+### Check Ctor `check_constructor_args env ctx ty args`
+
+### Check General Induction `env ctx d p cases t'`
+
+### Check `check env ctx t ty`
+
+### Granular Reductor `reduce env ctx t`
+
+### Case Branch `apply_case env ctx d p cases case ty args`
+
+### Normalization `normalize env ctx t`
+
 
 
 ## Properties
@@ -112,15 +206,16 @@ Sample list: cons zero cons succ zero nil
 
 ## CIC
 
-[1]. <a href="https://inria.hal.science/hal-01094195/document">Christine Paulin-Mohring. Introduction to the Calculus of Inductive Constructions.</a><br>
+[1]. Martin-Löf, P. (1984). Intuitionistic Type Theory.
 [2]. <a href="https://www.cs.unibo.it/~sacerdot/PAPERS/sadhana.pdf"> A. Asperti, W. Ricciotti, C. Sacerdoti Coen, E. Tassi. A compact kernel for the calculus of inductive constructions.</a><br>
-[3]. <a href="https://www.cs.cmu.edu/%7Efp/papers/mfps89.pdf">Frank Pfenning, Christine Paulin-Mohring. Inductively Defined Types in the Calculus of Construction</a><br>
-[4]. Asperti, A., Ricciotti, W., Coen, C. S., & Tassi, E. (2009). A compact kernel for the Calculus of Inductive Constructions.<br>
-[5]. Coquand, T., & Paulin-Mohring, C. (1990). Inductively defined types.<br>
-[6]. Dybjer, P. (1997). Inductive families.<br>
-[7]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.<br>
-[8]. Harper, R., & Licata, D. (2007). Mechanizing metatheory in a logical framework.<br>
-[9]. Martin-Löf, P. (1984). Intuitionistic Type Theory.
+[3]. de Bruijn, N. G. (1972). Lambda Calculus Notation with Nameless Dummies. Indagationes Mathematicae, 34(5), 381-392.
+[4]. <a href="https://inria.hal.science/hal-01094195/document">Christine Paulin-Mohring. Introduction to the Calculus of Inductive Constructions.</a><br>
+[5]. <a href="https://www.cs.cmu.edu/%7Efp/papers/mfps89.pdf">Frank Pfenning, Christine Paulin-Mohring. Inductively Defined Types in the Calculus of Construction</a><br>
+[6]. Asperti, A., Ricciotti, W., Coen, C. S., & Tassi, E. (2009). A compact kernel for the Calculus of Inductive Constructions.<br>
+[7]. Coquand, T., & Paulin-Mohring, C. (1990). Inductively defined types.<br>
+[8]. Dybjer, P. (1997). Inductive families.<br>
+[9]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.<br>
+[10]. Harper, R., & Licata, D. (2007). Mechanizing metatheory in a logical framework.<br>
 
 ## Author
 

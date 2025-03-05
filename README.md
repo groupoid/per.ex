@@ -130,7 +130,7 @@ aligning with CIC’s eliminator semantics.
 * `App/Constr/Elim`: Recurses on subterms.
 * `Inductive`: No substitution (assumes no free variables).
 
-**Theorem**. Substitution preserves typing (cf. [2], Lemma 2.1).
+**Theorem**. Substitution preserves typing (cf. [4], Lemma 2.1).
 If `Γ ⊢ t : T` and `Γ ⊢ s : A`, then `Γ ⊢ t[x := s] : T[x := s]`
 under suitable conditions on x.
 
@@ -146,7 +146,7 @@ but assumes args are well-typed, deferring validation to infer.
 * Validates argument count against d.params.
 * Substitutes each parameter into constructor types using subst_param.
 
-**Theorem**: Parameter application preserves inductiveness (cf. [2], Section 4).
+**Theorem**: Parameter application preserves inductiveness (cf. [4], Section 4).
 If `D` is an inductive type with parameters `P`, then `D[P]` is
 well-formed with substituted constructors.
 
@@ -161,11 +161,77 @@ inference steps, vital for diagnosing failures in complex terms.
 
 ### Check Universes `check_universe env ctx t`
 
+Ensure `t` is a universe, returning its level.
+Infers type of `t`, expects `Universe i`.
+
+This auxiliary enforces universe hierarchy, preventing
+paradoxes (e.g., Type : Type). It relies on infer,
+assuming its correctness, and throws errors for
+non-universe types, aligning with ITT’s stratification.
+
+**Theorem**: Universe checking is decidable (cf. [12]).
+If `ctx ⊢ t : Universe i`, then `check_universe env ctx t = i`.
+
 ### Check Ctor `check_constructor_args env ctx ty args`
+
+Validate constructor arguments against its type.
+
+This function implements the dependent application rule for constructors,
+ensuring each argument satisfies the constructor’s domain type in sequence.
+The recursive descent mirrors the structure of Π-types, where ty is peeled
+layer by layer, and subst x arg b updates the type for the next argument.
+The accumulator (args_acc) is a design choice for potential reversal,
+though unused here, reflecting a forward-thinking approach to argument
+order preservation. The absence of explicit universe level checks
+assumes ty is well-formed from the inductive definition, delegating
+such verification to infer or check_elim. Complexity is O(n) in the
+number of arguments, with substitution dominating for large terms.
+
+* Recursively matches `ty` (a Pi chain) with `args`, checking each argument and substituting.
+* Returns the final type when all arguments are consumed.
+
+Constructor typing is preserved (cf. [1], Section 4, Application Rule; [8], Section 4.3).
+If `ctx ⊢ c : Πx:A.B` and `ctx ⊢ a : A`, then `ctx ⊢ c a : B[x := a]`.
 
 ### Check General Induction `env ctx d p cases t'`
 
+Type-check an elimination (induction) over inductive type `d`.
+
+This function implements the dependent elimination rule of CIC,
+generalizing both computation (e.g., plus : `Nat → Nat → Nat`)
+and proof (e.g., `nat_elim : Πx:Nat.Type0`). The check `equal env ctx t_ty a`
+ensures the motive’s domain aligns with the target, while `compute_case_type`
+constructs the induction principle by injecting `App (p, var)`
+as the hypothesis type for recursive occurrences, mirroring the
+fixpoint-style eliminators of CIC [8]. The flexibility in result_ty
+avoids hardcoding it to D, supporting higher-type motives (e.g., Type0). The O(n·m) complexity (where n is the term size and m the number of cases) arises from substitution and equality checks, with debugging prints providing a window into the type checker’s reasoning, critical for dependent type systems where errors cascade.
+
+**Theorem**. Elimination preserves typing (cf. [8], Section 4.5; [1],
+Elimination Rule for Inductive Types). For an inductive type `D`
+with constructors `c_j`, if `ctx ⊢ t : D` and `ctx ⊢ P : D → Type_i`,
+and each case case_j has type `Πx:A_j.P(c_j x)` where `A_j` are
+the argument types of `c_j` (including recursive hypotheses), then `ctx ⊢ Elim(D, P, cases, t) : P t`.
+
 ### Check `check env ctx t ty`
+
+Check that `t` has type `ty`.
+
+* `Lam`: Ensures the domain is a type, extends the context, and checks the body against the codomain.
+* `Constr`: Infers the constructor’s type and matches it to the expected inductive type.
+* `Elim`: Computes the elimination type via check_elim and verifies it equals ty.
+* Default: Infers t’s type, normalizes ty, and checks equality.
+
+The function leverages bidirectional typing: specific cases (e.g., `Lam`)
+check directly, while the default case synthesizes via infer and compares
+with a normalized ty, ensuring definitional equality (β-reduction).
+Completeness hinges on normalize terminating (ITT’s strong normalization)
+and equal capturing judgmental equality. Complexity is O(n·m) (term size n,
+reduction steps m), with debugging output exposing mismatches, crucial for
+dependent types where errors are subtle.
+
+**Theorem**. Type checking is complete (cf. [1], Section III, Normalization; [8], Section 4.7).
+If `ctx ⊢ t : T` in the type theory, then `check env ctx t T` succeeds,
+assuming normalization and sound inference.
 
 ### Granular Reductor `reduce env ctx t`
 
@@ -209,14 +275,15 @@ Sample list: cons zero cons succ zero nil
 [1]. Martin-Löf, P. (1984). Intuitionistic Type Theory.
 [2]. <a href="https://www.cs.unibo.it/~sacerdot/PAPERS/sadhana.pdf"> A. Asperti, W. Ricciotti, C. Sacerdoti Coen, E. Tassi. A compact kernel for the calculus of inductive constructions.</a><br>
 [3]. de Bruijn, N. G. (1972). Lambda Calculus Notation with Nameless Dummies. Indagationes Mathematicae, 34(5), 381-392.
-[4]. <a href="https://inria.hal.science/hal-01094195/document">Christine Paulin-Mohring. Introduction to the Calculus of Inductive Constructions.</a><br>
-[5]. <a href="https://www.cs.cmu.edu/%7Efp/papers/mfps89.pdf">Frank Pfenning, Christine Paulin-Mohring. Inductively Defined Types in the Calculus of Construction</a><br>
-[6]. Asperti, A., Ricciotti, W., Coen, C. S., & Tassi, E. (2009). A compact kernel for the Calculus of Inductive Constructions.<br>
-[7]. Coquand, T., & Paulin-Mohring, C. (1990). Inductively defined types.<br>
-[8]. Dybjer, P. (1997). Inductive families.<br>
-[9]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.<br>
-[10]. Harper, R., & Licata, D. (2007). Mechanizing metatheory in a logical framework.<br>
-
+[4] <a href="https://core.ac.uk/download/pdf/82038778.pdf">The Calculus of Constructions</a> [Thierry Coquand, Gerard Huet]
+[5]. <a href="https://inria.hal.science/hal-01094195/document">Christine Paulin-Mohring. Introduction to the Calculus of Inductive Constructions.</a><br>
+[6]. <a href="https://www.cs.cmu.edu/%7Efp/papers/mfps89.pdf">Frank Pfenning, Christine Paulin-Mohring. Inductively Defined Types in the Calculus of Construction</a><br>
+[7]. Asperti, A., Ricciotti, W., Coen, C. S., & Tassi, E. (2009). A compact kernel for the Calculus of Inductive Constructions.<br>
+[8]. Coquand, T., & Paulin-Mohring, C. (1990). Inductively defined types.<br>
+[9]. Dybjer, P. (1997). Inductive families.<br>
+[10]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.<br>
+[11]. Harper, R., & Licata, D. (2007). Mechanizing metatheory in a logical framework.<br>
+[12]. Marc Bezem, Thierry Coquand, Peter Dybjer, Martín Escardó. <a href="https://arxiv.org/pdf/2212.03284">Type Theory with Explicit Universe Polymorphism</a>
 ## Author
 
 Namdak Tonpa

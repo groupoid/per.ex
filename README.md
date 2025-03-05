@@ -148,9 +148,9 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
 ```
 $ ocamlopt -o per induction.ml
 $ ./per
-Nat length: elim_Nat Π(_ : NatEven). NatEven [zero; λk. λih. nsucc ih] succ succ zero
-ToEven: elim_NatEven Π(_ : NatEven). NatEven [nzero; λk. λih. nsucc k] succ succ zero
-List length: elim_List Π(_ : List Type0). Nat [zero; λx. λxs. λih. succ ih] cons zero cons succ zero nil
+ToEven: esucc succ zero
+Add(3): succ succ succ zero
+List length: succ succ zero
 Sample list: cons zero cons succ zero nil
 ```
 

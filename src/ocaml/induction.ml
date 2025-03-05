@@ -355,8 +355,6 @@ let rec print_term (t : term) : unit =
         match d.name, j with
         | "Nat", 1 -> "zero"
         | "Nat", 2 -> "succ"
-        | "NatEven", 1 -> "nzero"
-        | "NatEven", 2 -> "nsucc"
         | "Even", 1 -> "ezero"
         | "Even", 2 -> "esucc"
         | "List", 1 -> "nil"
@@ -467,7 +465,12 @@ let to_even =
           Var "n"))
 
 let test () =
-  try check empty_env empty_ctx plus plus_ty; print_endline "plus OK!" with | TypeError msg -> print_endline ("Type error: " ^ msg);
+  let x = normalize env_mutual empty_ctx plus in
+  Printf.printf "plus: ";
+  print_term x;
+  print_endline "";
+  print_term plus_ty;
+  print_endline "";
 
   (* Test mutual recursion *)
   let zero = Constr (1, nat_def, []) in

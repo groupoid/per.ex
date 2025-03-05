@@ -52,8 +52,10 @@ let add_var (ctx : context) (x : name) (ty : term) : context = (x, ty) :: ctx
 let lookup_var (ctx : context) (x : name) : term option = try Some (List.assoc x ctx) with Not_found -> None
 let rec count_pis (ty : term) : int = match ty with | Pi (_, _, body) -> 1 + count_pis body | _ -> 0
 let rec apply_args (f : term) (args : term list) : term = match args with | [] -> f | arg :: rest -> apply_args (App (f, arg)) rest
+let rec count_lambdas t = match t with | Lam (_, body) -> 1 + count_lambdas body | _ -> 0
 
 exception TypeError of string
+
 
 (* Substitution *)
 let rec subst (x : name) (s : term) (t : term) : term =
@@ -124,6 +126,9 @@ and infer (env : env) (ctx : context) (t : term) : term =
        | Some ty -> ty
        | None -> raise (TypeError ("Unbound variable: " ^ x)))
   | Universe i -> Universe (i + 1)
+  | Lam (x, body) ->
+      (* Cannot infer type of lambda without annotation; assume check provides it *)
+      raise (TypeError "Cannot infer type of lambda without annotation; use check")
   | Pi (x, a, b) ->
       let a_ty = infer env ctx a in
       (match a_ty with
@@ -155,6 +160,9 @@ and infer (env : env) (ctx : context) (t : term) : term =
          in
          check_args cj_subst [] args
        with Not_found -> raise (TypeError ("Invalid constructor index: " ^ string_of_int j)))
+  | Inductive d ->
+      List.iter (fun (_, p_ty) -> ignore (infer env ctx p_ty)) d.params;
+      Universe d.level
   | Elim (d, p, cases, t') ->
       let d_ty = infer env ctx (Inductive d) in
       (match d_ty with
@@ -181,7 +189,7 @@ and infer (env : env) (ctx : context) (t : term) : term =
                     | _ -> ty
                   in
                   let case_ty = replace_d_with_p cj_subst in
-                  check env ctx case case_ty
+                  check env ctx case case_ty  (* Use check instead of infer *)
                 ) cases;
                 App (p, t')
             | _ -> raise (TypeError "Elim motive must return a type"))
@@ -211,24 +219,56 @@ and apply_inductive (d : inductive) (args : term list) : term =
   let subst_param t = List.fold_left2 (fun acc (n, _) arg -> subst n arg acc) t d.params args
   in Inductive { d with constrs = List.map (fun (j, ty) -> (j, subst_param ty)) d.constrs }
 
-let rec reduce (env : env) (ctx : context) (t : term) : term =
+and subst_rec_args env ctx p cases fn fn_args rec_args =
+  let rec apply_args fn args rec_args n =
+    match fn, args, rec_args, n with
+    | Lam (x, body), a :: rest_args, rec_args, n when n > 0 ->
+        apply_args (subst x a body) rest_args rec_args (n - 1)
+    | Lam (x, body), [], (r, d_rec) :: rest_rec, n when n > 0 ->
+        let elim_term = normalize env ctx (Elim (d_rec, p, cases, r)) in
+        apply_args (subst x elim_term body) [] rest_rec (n - 1)
+    | _, [], [], 0 -> fn  (* Fully applied *)
+    | _, [], _, n when n > 0 && List.length rec_args = 0 -> fn  (* No more recursive args *)
+    | _ -> raise (Failure (Printf.sprintf "Mismatch in subst_rec_args: args=%d, rec_args=%d, expected=%d" 
+                            (List.length args) (List.length rec_args) n))
+  in
+  let n_args = count_lambdas fn in
+  if n_args < List.length fn_args then
+    raise (Failure (Printf.sprintf "Too many arguments: %d expected, %d given" n_args (List.length fn_args)))
+  else
+    let result = apply_args fn fn_args rec_args n_args in
+    normalize env ctx result
+
+and reduce (env : env) (ctx : context) (t : term) : term =
   match t with
-  | App (Lam (x, body), arg) -> subst x arg body
-  | Fst (Pair (t1, _)) -> t1
-  | Snd (Pair (_, t2)) -> t2
+  | App (Lam (x, body), arg) -> 
+(*      Printf.printf "Reducing App Lam %s\n" x; *)
+      subst x arg body
   | Elim (d, p, cases, Constr (j, d', args)) when List.mem d'.name d.mutual_group ->
-      (* Find the inductive definition in the environment *)
-      let d_target = List.find (fun (_, def) -> def.name = d'.name) env in
+(*      Printf.printf "Reducing Elim %s, constructor %d, mutual_group: %s\n" d.name j (String.concat "," d.mutual_group); *)
+      let d_target = 
+        try List.find (fun (_, def) -> def.name = d'.name) env |> snd
+        with Not_found -> Printf.printf "Not_found: d_target for %s\n" d'.name; raise Not_found
+      in
       let param_args = List.map snd d.params in
-      if List.length d.params <> List.length d'.params then t
-      else
-        let cj_ty = List.assoc j (snd d_target).constrs in
-        let expected_arity = count_pis cj_ty - List.length d.params in
-        if List.length args <> expected_arity then t
-        else
-          let cj = List.nth cases (j - 1) in (* 0-based index *)
+      if List.length d.params <> List.length d'.params then (
+        Printf.printf "Param mismatch: %d vs %d\n" (List.length d.params) (List.length d'.params);
+        t
+      ) else
+        let cj_ty = 
+          try List.assoc j d_target.constrs
+          with Not_found -> Printf.printf "Not_found: constructor %d in %s\n" j d_target.name; raise Not_found
+        in
+        let expected_arity = count_pis cj_ty in
+        if List.length args <> expected_arity then (
+          Printf.printf "Arity mismatch: expected %d, got %d\n" expected_arity (List.length args);
+          t
+        ) else
+          let cj = 
+            try List.nth cases (j - 1)
+            with Not_found -> Printf.printf "Not_found: case %d in cases (len %d)\n" (j - 1) (List.length cases); raise Not_found
+          in
           let cj_ty_subst = List.fold_left2 (fun acc (n, _) arg -> subst n arg acc) cj_ty d.params param_args in
-          (* Collect recursive arguments and their types *)
           let rec collect_rec_args ty acc_args pos =
             match ty with
             | Pi (x, a, b) ->
@@ -241,24 +281,12 @@ let rec reduce (env : env) (ctx : context) (t : term) : term =
                 (match rec_type with
                  | Some d_rec ->
                      collect_rec_args b ((List.nth args pos, d_rec) :: acc_args) (pos + 1)
-                 | None ->
-                     collect_rec_args b acc_args (pos + 1))
+                 | None -> collect_rec_args b acc_args (pos + 1))
             | _ -> acc_args
           in
           let rec_args = collect_rec_args cj_ty_subst [] 0 in
-          (* Substitute recursive args with Elim calls *)
-          let rec subst_rec_args fn fn_args rec_args pos =
-            match fn_args, rec_args with
-            | a :: rest_args, (r, d_rec) :: rest_rec when equal env ctx a r ->
-                let elim_term = Elim (d_rec, p, cases, r) in
-                subst_rec_args (App (fn, elim_term)) rest_args rest_rec (pos + 1)
-            | a :: rest_args, _ :: rest_rec ->
-                subst_rec_args (App (fn, a)) rest_args rest_rec (pos + 1)
-            | a :: rest_args, [] ->
-                subst_rec_args (App (fn, a)) rest_args [] (pos + 1)
-            | [], _ -> fn
-          in
-          subst_rec_args cj args rec_args 0
+(*          Printf.printf "Applying case %d with %d recursive args\n" j (List.length rec_args); *)
+          subst_rec_args env ctx p cases cj args rec_args
   | Elim (d, p, cases, t') ->
       let t'' = reduce env ctx t' in
       if equal env ctx t' t'' then t else Elim (d, p, cases, t'')
@@ -267,10 +295,9 @@ let rec reduce (env : env) (ctx : context) (t : term) : term =
       if equal env ctx f f' then App (f', arg) else App (f', arg)
   | _ -> t
 
-let rec normalize (env : env) (ctx : context) (t : term) : term =
+and normalize (env : env) (ctx : context) (t : term) : term =
   let t' = reduce env ctx t in
-  if equal env ctx t t' then t
-  else normalize env ctx t'
+  if equal env ctx t t' then t else normalize env ctx t'
 
 (* Pretty Printer *)
 
@@ -358,11 +385,11 @@ let nat_def = {
   params = [];
   level = 0;
   constrs = [
-    (0, Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = [] }); (* zero : Nat *)
-    (1, Pi ("n", Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = [] }, 
-                 Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = [] })) (* succ : Nat -> Nat *)
+    (1, Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] }); (* zero : Nat *)
+    (2, Pi ("n", Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] }, 
+                 Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] })) (* succ : Nat -> Nat *)
   ];
-  mutual_group = []
+  mutual_group = ["Nat"]
 }
 
 let list_def (a : term) = {
@@ -370,24 +397,11 @@ let list_def (a : term) = {
   params = [("A", a)];
   level = (match a with Universe i -> i | _ -> failwith "List param must be a type");
   constrs = [
-    (0, Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = [] }); (* nil : List A *)
-    (1, Pi ("x", a,
-        Pi ("xs", Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = [] },
-                  Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = [] }))) (* cons : A -> List A -> List A *)
+    (1, Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] }); (* nil *)
+    (2, Pi ("x", a, Pi ("xs", Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] },
+                        Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] }))) (* cons *)
   ];
-  mutual_group = []
-}
-
-let nat_even_def = {
-  name = "NatEven";
-  params = [];
-  level = 0;
-  constrs = [
-    (1, Inductive { name = "NatEven"; params = []; level = 0; constrs = []; mutual_group = ["NatEven"; "Even"] }); (* zero *)
-    (2, Pi ("n", Inductive { name = "NatEven"; params = []; level = 0; constrs = []; mutual_group = ["NatEven"; "Even"] },
-                 Inductive { name = "NatEven"; params = []; level = 0; constrs = []; mutual_group = ["NatEven"; "Even"] })) (* succ *)
-  ];
-  mutual_group = ["NatEven"; "Even"]
+  mutual_group = ["List"]
 }
 
 let even_def = {
@@ -395,19 +409,18 @@ let even_def = {
   params = [];
   level = 0;
   constrs = [
-    (1, Inductive { name = "Even"; params = []; level = 0; constrs = []; mutual_group = ["NatEven"; "Even"] }); (* ezero *)
-    (2, Pi ("n", Inductive { name = "NatEven"; params = []; level = 0; constrs = []; mutual_group = ["NatEven"; "Even"] },
-                 Inductive { name = "Even"; params = []; level = 0; constrs = []; mutual_group = ["NatEven"; "Even"] })) (* esucc *)
+    (1, Inductive { name = "Even"; params = []; level = 0; constrs = []; mutual_group = ["Nat"; "Even"] }); (* ezero *)
+    (2, Pi ("n", Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"; "Even"] },
+                 Inductive { name = "Even"; params = []; level = 0; constrs = []; mutual_group = ["Nat"; "Even"] })) (* esucc *)
   ];
-  mutual_group = ["NatEven"; "Even"]
+  mutual_group = ["Nat"; "Even"]
 }
 
 let env_with_nat_list = [("Nat", nat_def), ("List", list_def (Universe 0))]
-let env_mutual        = [("NatEven", nat_even_def); ("Even", even_def); ("Nat", nat_def); ("List", list_def (Universe 0))]
+let env_mutual        = [("Even", even_def); ("Nat", nat_def); ("List", list_def (Universe 0))]
 
 let nat_ind      = Inductive nat_def
 let list_ind     = Inductive (list_def (Universe 0))
-let nat_even_ind = Inductive nat_even_def
 let even_ind     = Inductive even_def
 
 let list_length =
@@ -439,36 +452,37 @@ let plus_ty =
 let length =
   Lam ("n",
     Elim (nat_def,
-          Pi ("_", nat_even_ind, nat_even_ind),
+          Pi ("_", nat_ind, nat_ind),
           [Constr (1, nat_def, []);  (* zero -> zero *)
-           Lam ("k", Lam ("ih", Constr (2, nat_even_def, [Var "ih"])))], (* succ k ih -> succ ih *)
+           Lam ("k", Lam ("ih", Constr (2, nat_def, [Var "ih"])))], (* succ k ih -> succ ih *)
           Var "n"))
+
 
 let to_even =
   Lam ("n",
-    Elim (nat_even_def,
-          Pi ("_", nat_even_ind, nat_even_ind),
-          [Constr (1, nat_even_def, []);  (* zero -> ezero *)
-           Lam ("k", Lam ("ih", Constr (2, nat_even_def, [Var "k"])))], (* succ k ih -> esucc k *)
+    Elim (nat_def,
+          Pi ("_", nat_ind, even_ind),
+          [Constr (1, even_def, []);  (* ezero *)
+           Lam ("k", Lam ("ih", Constr (2, even_def, [Var "k"])))], (* esucc k *)
           Var "n"))
 
 let test () =
-
-  (* Test Nat normalization *)
-  let zero = Constr (1, nat_def, []) in
-  let one  = Constr (2, nat_def, [zero]) in
-  let two  = Constr (2, nat_def, [one]) in
-  let nat_term = App (length, two) in
-  let nat_normal = normalize env_mutual empty_ctx nat_term in
-  Printf.printf "Nat length: ";
-  print_term nat_normal;
-  print_endline "";
+  try check empty_env empty_ctx plus plus_ty; print_endline "plus OK!" with | TypeError msg -> print_endline ("Type error: " ^ msg);
 
   (* Test mutual recursion *)
+  let zero = Constr (1, nat_def, []) in
+  let one = Constr (2, nat_def, [zero]) in
+  let two = Constr (2, nat_def, [one]) in
   let even_term = App (to_even, two) in
   let even_normal = normalize env_mutual empty_ctx even_term in
   Printf.printf "ToEven: ";
   print_term even_normal;
+  print_endline "";
+
+  let add_term = App (App (plus, one), two) in
+  let add_normal = normalize env_mutual empty_ctx add_term in
+  Printf.printf "Add(3): ";
+  print_term add_normal;
   print_endline "";
 
   (* Test list length *)

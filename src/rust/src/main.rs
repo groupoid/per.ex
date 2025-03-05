@@ -1,7 +1,7 @@
 use lalrpop_util::lalrpop_mod;
 
+lalrpop_mod!(pub grammar);
 pub mod ast;
-pub mod grammar;
 
 fn print(s: &str) {
     let res = grammar::ExprParser::new().parse(s).unwrap();

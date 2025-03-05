@@ -54,15 +54,15 @@ while mutual_group hints at potential mutual recursion, though not fully exploit
 
 ## Syntax
 
-```
-(* Terms and types *)
+```OCaml
+
 type term =
-  | Var of name
-  | Universe of level
-  | Pi of name * term * term
-  | Lam of name * term * term
+  | Var of string
+  | Universe of int
+  | Pi of string * term * term
+  | Lam of string * term * term
   | App of term * term
-  | Sigma of name * term * term
+  | Sigma of string * term * term
   | Pair of term * term
   | Fst of term
   | Snd of term

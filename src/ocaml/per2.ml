@@ -190,7 +190,7 @@ let rec infer env ctx t =
             let ctx' = add_var ctx x a in
             let j = check_universe env ctx' b in
             Printf.printf "Codomain level: %d\n" j;
-            let result = Universe (max i j) in
+            let result = Universe (max i j + 1) in  (* Restore CIC rule *)
             Printf.printf "Pi type: "; print_term result; print_endline "";
             result
         | Lam (x, domain, body) ->
@@ -267,7 +267,6 @@ and check_elim env ctx d p cases t' =
             Pi (x, a, Pi ("ih", normalize env ctx (App (p, var)), b_ty))
           else Pi (x, a, b_ty)
       | Inductive d' when d'.name = d.name ->
-          (* For base case, return the motive applied to the constructor *)
           (match normalize env ctx p with
            | Pi (x, _, b) ->
                let constr = Constr (j_idx, d, []) in
@@ -301,8 +300,11 @@ and check env ctx t ty =
       let inferred = infer env ctx t in
       let ty' = normalize env ctx ty in
       Printf.printf "Inferred: "; print_term inferred; print_string ", Expected: "; print_term ty'; print_endline "";
-      if not (equal env ctx inferred ty') then
-        raise (TypeError "Type mismatch")
+      match inferred, ty' with
+      | Universe i, Universe j when i >= j -> ()  (* Cumulativity *)
+      | _ ->
+          if not (equal env ctx inferred ty') then
+            raise (TypeError "Type mismatch")
 
 (* Printing for debugging *)
 and print_term_depth depth t =
@@ -338,6 +340,7 @@ and print_term_depth depth t =
         ) cases;
         print_string "] ";
         print_term_depth (depth + 1) t'
+    | Inductive d -> print_string d.name
     | _ -> print_string "<term>"
 
 and print_term t = print_term_depth 0 t
@@ -413,14 +416,18 @@ let test () =
   Printf.printf "List.length: "; print_term list_normal; print_endline "";
   
   let succ = Lam ("n", nat_ind, Constr (2, nat_def, [Var "n"])) in
+  let nat_elim =
+    Elim (nat_def,
+          Pi ("x", nat_ind, Universe 0),
+          [Inductive nat_def; Lam ("n", nat_ind, Lam ("ih", Universe 0, Var "ih"))],
+          Constr (1, nat_def, [])) in
   try
     let succ_ty = infer env ctx succ in
     Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";
-    let nat_elim_ty = infer env ctx nat_elim in
-    Printf.printf "typeof(Nat.elim): "; print_term nat_elim_ty ; print_endline "";
     let plus_ty = infer env ctx plus in
-    Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline ""
+    Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline "";
+    let nat_elim_ty = infer env ctx nat_elim in
+    Printf.printf "typeof(Nat.elim): "; print_term nat_elim_ty; print_endline ""
   with TypeError msg -> print_endline ("Type error: " ^ msg)
 
 let _ = test ()
-

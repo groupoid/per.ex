@@ -221,10 +221,6 @@ and check env ctx t ty =
       let inferred = check_elim env ctx d p cases t' in
       if not (equal env ctx inferred ty) then
         raise (TypeError "Elimination type mismatch")
-  | Universe i, Universe j ->
-      Printf.printf "Universes: %i : %i\n" i j;
-      if (i + 1 == j) then () else 
-        raise (TypeError "Universe mismatch")
   | _, _ ->
       let inferred = infer env ctx t in
       let ty' = normalize env ctx ty in
@@ -426,7 +422,7 @@ let empty_ctx : context = []
 
 (* Test case *)
 let test () =
-  let ctx = empty_ctx in
+
   let zero = Constr (1, nat_def, []) in
   let one = Constr (2, nat_def, [zero]) in
   let two = Constr (2, nat_def, [one]) in
@@ -445,8 +441,6 @@ let test () =
 
   let succ = Lam ("n", nat_ind, Constr (2, nat_def, [Var "n"])) in
   try
-    let succ_ty = infer env ctx succ in
-    print_endline "Nat.succ type checked";
     let ty = infer env empty_ctx succ in
     print_endline "Nat.plus type checked";
     let elim_ty = infer env empty_ctx nat_elim in

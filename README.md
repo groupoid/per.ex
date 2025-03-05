@@ -190,7 +190,7 @@ number of arguments, with substitution dominating for large terms.
 * Recursively matches `ty` (a Pi chain) with `args`, checking each argument and substituting.
 * Returns the final type when all arguments are consumed.
 
-Constructor typing is preserved (cf. [1], Section 4, Application Rule; [8], Section 4.3).
+**Theorem**. Constructor typing is preserved (cf. [1], Section 4, Application Rule; [8], Section 4.3).
 If `ctx ⊢ c : Πx:A.B` and `ctx ⊢ a : A`, then `ctx ⊢ c a : B[x := a]`.
 
 ### Check General Induction `env ctx d p cases t'`
@@ -233,7 +233,23 @@ dependent types where errors are subtle.
 If `ctx ⊢ t : T` in the type theory, then `check env ctx t T` succeeds,
 assuming normalization and sound inference.
 
-### Granular Reductor `reduce env ctx t`
+### One-step β-reductor `reduce env ctx t`
+
+Perform one-step β-reduction or inductive elimination.
+
+The function implements a one-step reduction strategy combining ITT’s β-reduction [1] with CIC’s ι-reduction for inductives [8]. The `App (Lam, arg)` case directly applies substitution, while `Elim (Constr)` uses `apply_case` to handle induction, ensuring recursive calls preserve typing via the motive p. The Pi case, though unconventional, supports type-level computation, consistent with CIC’s flexibility. Complexity is O(n) for simple β-steps, but O(n·m) for Elim (term size n, case application depth m), with debugging prints tracing each step, essential for verifying reductions like `plus 2 2 → 4`.
+
+* `App (Lam, arg)`: Substitutes arg into the lambda body (β-reduction).
+* `App (Pi, arg)`: Substitutes arg into the codomain (type-level β-reduction).
+* `App (f, arg)`: Reduces f, then arg if f is unchanged.
+* `Elim (d, p, cases, Constr)`: Applies the appropriate case to constructor arguments, computing recursive calls (ι-reduction).
+* `Elim (d, p, cases, t')`: Reduces the target `t'`.
+* `Constr`: Reduces arguments.
+* Default: Returns unchanged.
+
+**Theorem**. Reduction preserves typing (cf. [1], Section III, Normalization Lemma;
+[8], Section 4.6, Subject Reduction). If `ctx ⊢ t : T` and `t → t'`
+via β-reduction or inductive elimination, then `ctx ⊢ t' : T`.
 
 ### Case Branch `apply_case env ctx d p cases case ty args`
 

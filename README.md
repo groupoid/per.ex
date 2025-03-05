@@ -148,11 +148,11 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
 [1]. <a href="https://inria.hal.science/hal-01094195/document">Christine Paulin-Mohring. Introduction to the Calculus of Inductive Constructions.</a><br>
 [2]. <a href="https://www.cs.unibo.it/~sacerdot/PAPERS/sadhana.pdf"> A. Asperti, W. Ricciotti, C. Sacerdoti Coen, E. Tassi. A compact kernel for the calculus of inductive constructions.</a><br>
 [3]. <a href="https://www.cs.cmu.edu/%7Efp/papers/mfps89.pdf">Frank Pfenning, Christine Paulin-Mohring. Inductively Defined Types in the Calculus of Construction</a><br>
-[4]. Asperti, A., Ricciotti, W., Coen, C. S., & Tassi, E. (2009). A compact kernel for the Calculus of Inductive Constructions.
-[5]. Coquand, T., & Paulin-Mohring, C. (1990). Inductively defined types.
-[6]. Dybjer, P. (1997). Inductive families.
-[7]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.
-[8]. Harper, R., & Licata, D. (2007). Mechanizing metatheory in a logical framework.
+[4]. Asperti, A., Ricciotti, W., Coen, C. S., & Tassi, E. (2009). A compact kernel for the Calculus of Inductive Constructions.<br>
+[5]. Coquand, T., & Paulin-Mohring, C. (1990). Inductively defined types.<br>
+[6]. Dybjer, P. (1997). Inductive families.<br>
+[7]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.<br>
+[8]. Harper, R., & Licata, D. (2007). Mechanizing metatheory in a logical framework.<br>
 [9]. Martin-Löf, P. (1984). Intuitionistic Type Theory.
 
 ## Author

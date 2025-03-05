@@ -1,4 +1,5 @@
-(* Core types remain the same as in the original *)
+let trace: bool ref = ref false
+
 type level = int
 type name = string
 

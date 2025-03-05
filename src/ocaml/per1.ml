@@ -165,10 +165,27 @@ and check_elim env ctx d p cases t' =
   print_endline "";
   let t_ty = infer env ctx t' in
   let d_applied = apply_inductive d (List.map snd d.params) in
+  Printf.printf "Target type: "; print_term t_ty; print_endline "";
   if not (equal env ctx t_ty d_applied) then
     raise (TypeError "Elimination target type mismatch");
-  let motive_ty_ty = Universe (d.level + 1) in
-  check env ctx p motive_ty_ty;
+  (* Check that p is a Pi type structurally *)
+  let (x, a, b) = match p with
+    | Pi (x, a, b) -> (x, a, b)
+    | _ -> raise (TypeError ("Motive must be a Pi type, got: " ^ (let s = ref "" in print_term_depth 0 p; !s)))
+  in
+  Printf.printf "Motive domain: "; print_term a; print_endline "";
+  Printf.printf "Motive codomain: "; print_term b; print_endline "";
+  (* Verify the motive's type *)
+  let p_ty = infer env ctx p in
+  Printf.printf "Motive type inferred: "; print_term p_ty; print_endline "";
+  (match p_ty with
+   | Universe _ -> ()  (* Motive should be a type *)
+   | _ -> raise (TypeError "Motive must be a type (Universe)"));
+  (* Check that the target's type matches the motive's domain *)
+  if not (equal env ctx t_ty a) then
+    raise (TypeError "Target type does not match motive domain");
+  let result_ty = subst x t' b in
+  Printf.printf "Result type: "; print_term result_ty; print_endline "";
   if List.length cases <> List.length d.constrs then
     raise (TypeError "Number of cases doesn't match constructors");
   List.iteri (fun j case ->
@@ -188,7 +205,7 @@ and check_elim env ctx d p cases t' =
           else
             Pi (x, a, b_ty)
       | Inductive d' when d'.name = d.name ->
-          Universe d.level
+          b  (* Return type is the motive's codomain *)
       | _ -> raise (TypeError "Invalid constructor return type")
     in
     let expected_ty = compute_case_type cj_subst ctx in
@@ -196,15 +213,7 @@ and check_elim env ctx d p cases t' =
     check env ctx case expected_ty;
     Printf.printf "Case %d checked\n" j
   ) cases;
-  let result = App (p, t') in
-  match p with
-  | Pi (x, _, b) ->
-      let result_ty = subst x t' b in  (* Compute result type directly *)
-      let expected_ty = Universe d.level in
-      if not (equal env ctx result_ty expected_ty) then
-        raise (TypeError "Elimination result type mismatch");
-      result_ty
-  | _ -> raise (TypeError "Motive must be a Pi type")
+  result_ty  (* Return the type of the elimination *)
 
 (* Type checking *)
 and check env ctx t ty =
@@ -418,11 +427,13 @@ let nat_elim =
           [Inductive nat_def; Lam ("n", nat_ind, Lam ("ih", Universe 0, Var "ih"))],
           Constr (1, nat_def, []))
 
+let succ = Lam ("n", nat_ind, Constr (2, nat_def, [Var "n"]))
+
 let empty_ctx : context = []
 
 (* Test case *)
 let test () =
-
+  let ctx = empty_ctx in
   let zero = Constr (1, nat_def, []) in
   let one = Constr (2, nat_def, [zero]) in
   let two = Constr (2, nat_def, [one]) in
@@ -439,13 +450,13 @@ let test () =
   print_term list_normal;
   print_endline "";
 
-  let succ = Lam ("n", nat_ind, Constr (2, nat_def, [Var "n"])) in
   try
-    let ty = infer env empty_ctx succ in
-    print_endline "Nat.plus type checked";
-    let elim_ty = infer env empty_ctx nat_elim in
-    print_endline "Nat.Elim type checked"
-  with
-  | TypeError msg -> print_endline ("Type error: " ^ msg)
+    let succ_ty = infer env ctx succ in
+    Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";
+    let plus_ty = infer env ctx plus in
+    Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline "";
+    let nat_elim_ty = infer env ctx nat_elim in
+    Printf.printf "typeof(Nat.elim): "; print_term nat_elim_ty; print_endline ""
+  with TypeError msg -> print_endline ("Type error: " ^ msg)
 
 let _ = test ()

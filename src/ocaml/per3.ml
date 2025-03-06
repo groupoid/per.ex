@@ -357,7 +357,9 @@ let test () =
       let sym_ty = infer env ctx sym_term in
       let _ = check env ctx id_term id_ty in
       let trans_ty = infer env ctx trans_term in
-      let add_normal = normalize env empty_ctx add_term in
+      let trans_norm = normalize env ctx trans_term in
+      let subst_norm = normalize env ctx subst_eq in
+      let add_normal = normalize env ctx add_term in
 
       Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
       Printf.printf "List.length: "; print_term (normalize env empty_ctx (App (list_length, sample_list))); print_endline "";
@@ -372,8 +374,8 @@ let test () =
       Printf.printf "symmetry reduces to: "; print_term sym_term; print_endline ""; 
       Printf.printf "Checking id_term: "; print_term id_term; print_string " against "; print_term id_ty; print_endline ""; 
       Printf.printf "typeof(id_term)=id_ty\n";
-      Printf.printf "norm(subst_eq): "; print_term (normalize env ctx subst_eq); print_endline "";
-      Printf.printf "norm(tran_term): "; print_term (normalize env ctx trans_term); print_endline "";
+      Printf.printf "norm(subst_eq): "; print_term subst_norm; print_endline "";
+      Printf.printf "norm(tran_term): "; print_term trans_norm; print_endline "";
       Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline "";
 
   with TypeError msg -> print_endline ("Type error: " ^ msg)

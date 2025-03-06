@@ -358,15 +358,15 @@ typeof(Nat.elim): Type0
 typeof(Sigma.pair): (Nat.1, Nat.2Nat.1)
 typeof(Sigma.fst(Sigma.pair)): Nat
 typeof(Sigma.snd(Sigma.pair)): Nat
-typeof(id_symmetry): (((Π(x : Nat).Π(y : Nat).
-                        Π(p : {x = y : Nat}).{y = x : Nat} Nat.1) Nat.1) Id.refl Nat.1)
-
+typeof(id_symmetry): {Nat.1 = Nat.1 : Nat}
 symmetry reduces to: Id.refl Nat.1
 Checking id_term: Id.refl Nat.1 against {Nat.1 = Nat.1 : Nat}
 typeof(id_term)=id_ty
 norm(tran_term): Id.refl Nat.1
 norm(subst_eq): λ (a), λ (b), λ (p), λ (P), λ (x),
                 J (Nat, a, b, Π(x : Nat).Π(y : Nat).Π(p : {x = y : Nat}).(P y), λ (x), x, p)
+typeof(id_transitivity): (((Π(x : Nat).Π(y : Nat).
+                Π (_ : {x = y : Nat}).{Nat.1 = Nat.1 : Nat} Nat.1) Nat.1) Id.refl Nat.1)
 ```
 
 ## CIC

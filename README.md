@@ -346,12 +346,24 @@ let _ = test ()
 ```
 
 ```
-$ ocamlopt -o per induction.ml
 $ ./per
-ToEven: esucc succ zero
-Add(3): succ succ succ zero
-List length: succ succ zero
-Sample list: cons zero cons succ zero nil
+Nat.add: Nat.2Nat.2Nat.2Nat.2Nat.1
+List.length: Nat.2Nat.2Nat.1
+Nat.Elim: Nat.elim Π(x : Nat).Type0 [Nat; λ (n), λ (ih), ih] Nat.1
+typeof(Nat.succ): Π(n : Nat).Nat
+typeof(Nat.plus): Π(m : Nat).Π(n : Nat).Nat
+typeof(Nat.elim): Type0
+typeof(Sigma.pair): (Nat.1, Nat.2Nat.1)
+typeof(Sigma.fst(Sigma.pair)): Nat
+typeof(Sigma.snd(Sigma.pair)): Nat
+typeof(id_symmetry): (((Π(x : Nat).Π(y : Nat).Π(p : {x = y : Nat}).{y = x : Nat} Nat.1) Nat.1) Id.refl Nat.1)
+symmetry reduces to: Id.refl Nat.1
+Checking id_term: Id.refl Nat.1 against {Nat.1 = Nat.1 : Nat}
+typeof(id_term)=id_ty
+norm(tran_term): Id.refl Nat.1
+List.Length: Nat.2Nat.2Nat.1
+norm(subst_eq): λ (a), λ (b), λ (p), λ (P), λ (x),
+                J (Nat, a, b, Π(x : Nat).Π(y : Nat).Π(p : {x = y : Nat}).(P y), λ (x), x, p)
 ```
 
 ## CIC

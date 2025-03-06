@@ -1,6 +1,6 @@
 (* Copyright (c) 2016—2025 Groupoid Infinity *)
 
-let trace: bool = true
+let trace: bool = false
 
 type level = int
 type name = string
@@ -84,101 +84,30 @@ and infer env ctx t =
     match t with
     | Var x -> (match lookup_var ctx x with | Some ty -> ty | None -> raise (TypeError ("Unbound variable: " ^ x)))
     | Universe i -> Universe (i + 1)
-    | Pi (x, a, b) ->
-      let i = check_universe env ctx a in
-      let ctx' = add_var ctx x a in
-      let j = check_universe env ctx' b in
-      let result = Universe (max i j) in
-      (if (trace) then (Printf.printf "Inferring Pi %s\n" x;
-                       Printf.printf "Domain level: %d\n" i;
-                       Printf.printf "Codomain level: %d\n" j;
-                       Printf.printf "Pi type: "; print_term result; print_endline "");
-      result)
-    | Lam (x, domain, body) ->
-      check env ctx domain (infer env ctx domain);
-      let ctx' = add_var ctx x domain in
-      let body_ty = infer env ctx' body in
-      let result = Pi (x, domain, body_ty) in
-      (if (trace) then (Printf.printf "Inferring Lam %s: domain = " x; print_term domain; print_endline "";
-                        Printf.printf "Inferred body type: "; print_term body_ty; print_endline "";
-                        Printf.printf "Returning Pi type: "; print_term result; print_endline "");
-      result)
-    | App (f, arg) ->
-      (match infer env ctx f with
-        | Pi (x, a, b) -> check env ctx arg a; subst x arg b
-        | ty -> Printf.printf "App failed: inferred "; print_term ty; print_endline ""; raise (TypeError "Application requires a Pi type"))
-    | Sigma (x, a, b) ->
-      let i = check_universe env ctx a in
-      let ctx' = add_var ctx x a in
-      let j = check_universe env ctx' b in
-      Universe (max i j)
-    | Pair (a, b) ->
-      let a_ty = infer env ctx a in  (* Nat *)
-      let b_ty = infer env ctx b in  (* Nat *)
-      let expected_b_ty = subst "x" a b_ty in  (* Substitute to ensure dependency, but here b_ty is Nat *)
-      check env ctx b b_ty;  (* Just check b has its inferred type *)
-      Sigma ("x", a_ty, b_ty)  (* Correctly form Σ(x : Nat).Nat *)
-    | Fst p ->
-      (match infer env ctx p with
-       | Sigma (x, a, b) -> a
-       | ty -> raise (TypeError ("Fst expects a Sigma type, got: " ^ (let s = ref "" in print_term_depth 0 ty; !s))))
-    | Snd p ->
-      (match infer env ctx p with
-       | Sigma (x, a, b) -> subst x (Fst p) b
-       | ty -> raise (TypeError ("Snd expects a Sigma type, got: " ^ (let s = ref "" in print_term_depth 0 ty; !s))))
-    | Id (ty, a, b) ->
-      check env ctx a ty;
-      check env ctx b ty;
-      Universe (check_universe env ctx ty)
-    | Refl a ->
-      let a_ty = infer env ctx a in
-      Id (a_ty, a, a)
-    | Inductive d ->
-      List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params;
-      Universe d.level
-    | Constr (j, d, args) ->
-      let cj = List.assoc j d.constrs in
-      let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in
-      check_constructor_args env ctx cj_subst args
+    | Pi (x, a, b) -> let i = check_universe env ctx a in let ctx' = add_var ctx x a in let j = check_universe env ctx' b in Universe (max i j)
+    | Lam (x, domain, body) -> check env ctx domain (infer env ctx domain); let ctx' = add_var ctx x domain in let body_ty = infer env ctx' body in Pi (x, domain, body_ty)
+    | App (f, arg) -> (match infer env ctx f with | Pi (x, a, b) -> check env ctx arg a; subst x arg b | ty -> Printf.printf "App failed: inferred "; print_term ty; print_endline ""; raise (TypeError "Application requires a Pi type"))
+    | Sigma (x, a, b) -> let i = check_universe env ctx a in let ctx' = add_var ctx x a in let j = check_universe env ctx' b in Universe (max i j)
+    | Pair (a, b) -> let a_ty = infer env ctx a in let b_ty = infer env ctx b in check env ctx b b_ty; Sigma ("x", a_ty, b_ty)
+    | Fst p -> (match infer env ctx p with | Sigma (x, a, b) -> a | ty -> raise (TypeError ("Fst expects a Sigma type, got: " ^ (let s = ref "" in print_term_depth 0 ty; !s))))
+    | Snd p -> (match infer env ctx p with | Sigma (x, a, b) -> subst x (Fst p) b | ty -> raise (TypeError ("Snd expects a Sigma type, got: " ^ (let s = ref "" in print_term_depth 0 ty; !s))))
+    | Id (ty, a, b) -> check env ctx a ty; check env ctx b ty; Universe (check_universe env ctx ty)
+    | Refl a -> let a_ty = infer env ctx a in Id (a_ty, a, a)
+    | Inductive d -> List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params; Universe d.level
+    | Constr (j, d, args) -> let cj = List.assoc j d.constrs in let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in infer_ctor env ctx cj_subst args
     | Elim (d, p, cases, t') -> infer_elim env ctx d p cases t'
     | J (ty, a, b, c, d, p) -> infer_J env ctx ty a b c d p
 
-(*
+and infer_ctor env ctx ty args =
+    let rec check_args ty args_acc = function
+    | [] -> ty
+    | arg :: rest ->
+        (match ty with
+         | Pi (x, a, b) -> check env ctx arg a; check_args (subst x arg b) (arg :: args_acc) rest
+         | _ -> raise (TypeError "Too many arguments to constructor"))
+    in check_args ty [] args
 
-let implv a b = VPi (a, (Irrefutable, fun _ -> b))
-
-and inferJ v t =
-  let x = freshName "x" in let y = freshName "y" in let pi = freshName "P" in let p = freshName "p" in
-  let k = extSet t in let t = VPi (v, (x, fun x -> VPi (v, (y, fun y -> implv (idv v x y) (VPre k))))) in
-
-  VPi (t, (pi, fun pi ->
-    VPi (v, (x, fun x ->
-      implv (app (app (app (pi, x), x), VRef x))
-            (VPi (v, (y, fun y ->
-              VPi (idv v x y, (p, fun p ->
-                app (app (app (pi, x), y), p))))))))))
-*)
-
-and infer_J env ctx ty a b c d p =
-    let a_ty = infer env ctx a in
-    if not (equal env ctx a_ty ty) then raise (TypeError "J: First argument must match type A");
-    let b_ty = infer env ctx b in
-    if not (equal env ctx b_ty ty) then raise (TypeError "J: Second argument must match type A");
-    let expected_motive = Pi ("x", ty, Pi ("y", ty, Pi ("p", Id (ty, Var "x", Var "y"), Universe 0))) in
-    if (trace) then (Printf.printf "Checking J motive: "; print_term c; print_string " against "; print_term expected_motive; print_endline "");
-    check env ctx c expected_motive;
-    let ctx_d = add_var ctx "x" ty in
-    let c_x_x = App (App (c, Var "x"), Var "x") in
-    let refl_x = Refl (Var "x") in
-    let expected_d_ty = Pi ("x", ty, App (c_x_x, refl_x)) in
-    if (trace) then (Printf.printf "Checking J reflexive case: "; print_term d; print_string " against "; print_term expected_d_ty; print_endline "");
-    check env ctx d expected_d_ty;
-    check env ctx p (Id (ty, a, b));
-    let result = App (App (App (c, a), b), p) in
-    if (trace) then (Printf.printf "J result type: "; print_term result; print_endline "");
-    normalize env ctx result
-
-and check_J env ctx ty' a b c d p =
+and infer_J env ctx ty' a b c d p =
     check env ctx ty' (Universe 0); (* A : Type0 *)
     check env ctx a ty'; (* a : A *)
     check env ctx b ty'; (* b : A *)
@@ -188,7 +117,10 @@ and check_J env ctx ty' a b c d p =
     check env ctx d refl_case_ty; (* d : Π(x : A).C x x (refl x) *)
     check env ctx p (Id (ty', a, b)); (* p : Id (A, a, b) *)
     let result_ty = App (App (App (c, a), b), p) in
-    normalize env ctx result_ty
+    (if (trace) then (Printf.printf "Checking J motive: "; print_term c; print_string " against "; print_term motive_ty; print_endline "";
+                      Printf.printf "Checking J reflexive case: "; print_term d; print_string " against "; print_term refl_case_ty; print_endline "";
+                      Printf.printf "J result type: "; print_term result_ty; print_endline "");
+    result_ty)
 
 and infer_elim env ctx d p cases t' =
     let t_ty = infer env ctx t' in
@@ -230,15 +162,6 @@ and check_universe env ctx t =
     match infer env ctx t with
     | Universe i -> i
     | _ -> raise (TypeError "Expected a universe")
-
-and check_constructor_args env ctx ty args =
-    let rec check_args ty args_acc = function
-    | [] -> ty
-    | arg :: rest ->
-        (match ty with
-         | Pi (x, a, b) -> check env ctx arg a; check_args (subst x arg b) (arg :: args_acc) rest
-         | _ -> raise (TypeError "Too many arguments to constructor"))
-    in check_args ty [] args
 
 
 and check env ctx t ty =

@@ -1,8 +1,9 @@
+(* Copyright (c) 2016—2025 Groupoid Infinity *)
+
 let trace: bool = false
 
 type level = int
 type name = string
-
 
 type term =
   | Var of name
@@ -308,7 +309,7 @@ and print_term_depth depth t =
           print_term_depth (depth + 1) c
         ) args;
     | Elim (d, p, cases, t') ->
-        print_string (d.name ^ ".elim");
+        print_string (d.name ^ ".elim ");
         print_term_depth (depth + 1) p;
         print_string " [";
         List.iteri (fun i c ->
@@ -379,6 +380,14 @@ let nat_elim =
           [Inductive nat_def; Lam ("n", nat_ind, Lam ("ih", Universe 0, Var "ih"))],
           Constr (1, nat_def, []))
 
+let succ = Lam ("n", nat_ind, Constr (2, nat_def, [Var "n"])) 
+
+let nat_elim =
+    Elim (nat_def,
+          Pi ("x", nat_ind, Universe 0),
+          [Inductive nat_def; Lam ("n", nat_ind, Lam ("ih", Universe 0, Var "ih"))],
+          Constr (1, nat_def, []))
+
 let test () =
   let ctx = empty_ctx () in
   let zero = Constr (1, nat_def, []) in
@@ -387,19 +396,9 @@ let test () =
   let add_term = App (App (plus, two), two) in
   let add_normal = normalize env ctx add_term in
   Printf.printf "Nat.Add: "; print_term add_normal; print_endline "";
-  
-  let list_term = App (list_length, sample_list) in
-  let list_normal = normalize env ctx list_term in
-  Printf.printf "List.Length: "; print_term list_normal; print_endline "";
-
+  Printf.printf "List.Length: "; print_term (normalize env ctx (App (list_length, sample_list))); print_endline "";
   Printf.printf "Nat.Elim: "; print_term nat_elim; print_endline "";
   
-  let succ = Lam ("n", nat_ind, Constr (2, nat_def, [Var "n"])) in
-  let nat_elim =
-    Elim (nat_def,
-          Pi ("x", nat_ind, Universe 0),
-          [Inductive nat_def; Lam ("n", nat_ind, Lam ("ih", Universe 0, Var "ih"))],
-          Constr (1, nat_def, [])) in
   try
     let succ_ty = infer env ctx succ in
     Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";

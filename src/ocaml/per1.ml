@@ -1,3 +1,5 @@
+(* Copyright (c) 2016—2025 Groupoid Infinity *)
+
 let trace: bool = false
 
 type level = int
@@ -291,12 +293,16 @@ and print_term_depth depth t =
         print_string " ";
         print_term_depth (depth + 1) arg;
         print_string ")"
-    | Constr (1, d, []) when d.name = "Nat" -> print_string "zero"
-    | Constr (2, d, [n]) when d.name = "Nat" ->
-        print_string "succ ";
-        print_term_depth (depth + 1) n
+    | Constr (i, d, args) ->
+        print_string d.name;
+        print_string ".";
+        print_string (string_of_int i);
+        List.iteri (fun j c ->
+          if j > 0 then print_string "; ";
+          print_term_depth (depth + 1) c
+        ) args;
     | Elim (d, p, cases, t') ->
-        print_string ("elim_" ^ d.name ^ " ");
+        print_string (d.name ^ ".elim ");
         print_term_depth (depth + 1) p;
         print_string " [";
         List.iteri (fun i c ->
@@ -305,6 +311,7 @@ and print_term_depth depth t =
         ) cases;
         print_string "] ";
         print_term_depth (depth + 1) t'
+    | Inductive d -> print_string d.name
     | _ -> print_string "<term>"
 
 and print_term t = print_term_depth 0 t
@@ -375,7 +382,6 @@ let succ = Lam ("n", nat_ind, Constr (2, nat_def, [Var "n"]))
 
 let empty_ctx : context = []
 
-(* Test case *)
 let test () =
   let ctx = empty_ctx in
   let zero = Constr (1, nat_def, []) in
@@ -384,11 +390,8 @@ let test () =
   let add_term = App (App (plus, two), two) in
   let add_normal = normalize env empty_ctx add_term in
   Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
-
-  (* Test list length *)
-  let list_term = App (list_length, sample_list) in
-  let list_normal = normalize env empty_ctx list_term in
-  Printf.printf "List.length: "; print_term list_normal; print_endline "";
+  Printf.printf "List.length: "; print_term (normalize env empty_ctx (App (list_length, sample_list))); print_endline "";
+  Printf.printf "Nat.Elim: "; print_term nat_elim; print_endline "";
 
   try
     let succ_ty = infer env ctx succ in

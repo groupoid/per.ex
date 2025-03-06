@@ -150,15 +150,6 @@ but assumes args are well-typed, deferring validation to infer.
 If `D` is an inductive type with parameters `P`, then `D[P]` is
 well-formed with substituted constructors.
 
-### Type Inference `infer env ctx t`
-
-Infer the type of term `t` in context `ctx` and environment `env`.
-
-For `Pi` and `Lam`, universe levels ensure consistency
-(e.g., `Type i : Type (i + 1)`), while `Elim` handles induction,
-critical for dependent elimination. Debugging prints expose
-inference steps, vital for diagnosing failures in complex terms.
-
 ### Check Universes `check_universe env ctx t`
 
 Ensure `t` is a universe, returning its level.
@@ -172,7 +163,7 @@ non-universe types, aligning with ITT’s stratification.
 **Theorem**: Universe checking is decidable (cf. [12]).
 If `ctx ⊢ t : Universe i`, then `check_universe env ctx t = i`.
 
-### Check Ctor `check_constructor_args env ctx ty args`
+### Check Contstructor `check_constructor_args env ctx ty args`
 
 Validate constructor arguments against its type.
 
@@ -193,7 +184,9 @@ number of arguments, with substitution dominating for large terms.
 **Theorem**. Constructor typing is preserved (cf. [1], Section 4, Application Rule; [8], Section 4.3).
 If `ctx ⊢ c : Πx:A.B` and `ctx ⊢ a : A`, then `ctx ⊢ c a : B[x := a]`.
 
-### Check General Induction `env ctx d p cases t'`
+### Check Equality Induction `check_J env ctx ty a b c d p`
+
+### Check General Induction `check_elim env ctx d p cases t'`
 
 Type-check an elimination (induction) over inductive type `d`.
 
@@ -233,6 +226,26 @@ dependent types where errors are subtle.
 If `ctx ⊢ t : T` in the type theory, then `check env ctx t T` succeeds,
 assuming normalization and sound inference.
 
+### Type Inference `infer env ctx t`
+
+Infer the type of term `t` in context `ctx` and environment `env`.
+
+For `Pi` and `Lam`, universe levels ensure consistency
+(e.g., `Type i : Type (i + 1)`), while `Elim` handles induction,
+critical for dependent elimination. Debugging prints expose
+inference steps, vital for diagnosing failures in complex terms.
+
+### Case Branch `apply_case env ctx d p cases case ty args`
+
+Apply a case branch to constructor arguments.
+
+This function realizes CIC’s ι-reduction for inductive eliminators [8], where a case branch is applied to constructor arguments, including recursive hypotheses. For Nat’s succ in plus, ty = Πn:Nat.Nat, case = λk.λih.succ ih, and args = [n]. The recursive check (a = Inductive d) triggers for n : Nat, computing ih = Elim(Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], n), ensuring succ ih : Nat. The nested apply_term handles multi-argument lambdas (e.g., k and ih), avoiding explicit uncurrying, while substitution preserves typing per CIC’s rules. Complexity is O(n·m) (term size n, recursive reduction depth m), with debugging prints tracing hypothesis generation, critical for verifying induction steps (e.g., plus m (succ n) → succ (plus m n)).
+
+**Theorem**. Case application is sound (cf. [8],
+Section 4.5, Elimination Typing; [1], Section 5, Elimination Rule).
+If `case : Πx:A.P(c x)` and `args` match `A`, then `apply_case env ctx d p cases case ty args`
+yields a term of type `P(c args)`.
+
 ### One-step β-reductor `reduce env ctx t`
 
 Perform one-step β-reduction or inductive elimination.
@@ -250,17 +263,6 @@ The function implements a one-step reduction strategy combining ITT’s β-reduc
 **Theorem**. Reduction preserves typing (cf. [1], Section III, Normalization Lemma;
 [8], Section 4.6, Subject Reduction). If `ctx ⊢ t : T` and `t → t'`
 via β-reduction or inductive elimination, then `ctx ⊢ t' : T`.
-
-### Case Branch `apply_case env ctx d p cases case ty args`
-
-Apply a case branch to constructor arguments.
-
-This function realizes CIC’s ι-reduction for inductive eliminators [8], where a case branch is applied to constructor arguments, including recursive hypotheses. For Nat’s succ in plus, ty = Πn:Nat.Nat, case = λk.λih.succ ih, and args = [n]. The recursive check (a = Inductive d) triggers for n : Nat, computing ih = Elim(Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], n), ensuring succ ih : Nat. The nested apply_term handles multi-argument lambdas (e.g., k and ih), avoiding explicit uncurrying, while substitution preserves typing per CIC’s rules. Complexity is O(n·m) (term size n, recursive reduction depth m), with debugging prints tracing hypothesis generation, critical for verifying induction steps (e.g., plus m (succ n) → succ (plus m n)).
-
-**Theorem**. Case application is sound (cf. [8],
-Section 4.5, Elimination Typing; [1], Section 5, Elimination Rule).
-If `case : Πx:A.P(c x)` and `args` match `A`, then `apply_case env ctx d p cases case ty args`
-yields a term of type `P(c args)`.
 
 ### Normalization `normalize env ctx t`
 

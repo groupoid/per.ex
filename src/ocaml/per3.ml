@@ -11,25 +11,23 @@ type term =
   | Sigma of name * term * term | Pair of term * term | Fst of term | Snd of term
   | Id of term * term * term | Refl of term | J of term * term * term * term * term * term  (* J A a b C d p *)
   | Inductive of inductive | Constr of int * inductive * term list | Elim of inductive * term * term list * term
-
-and inductive = {
-  name : string;
-  params : (name * term) list;
-  level : level;
-  constrs : (int * term) list;
-  mutual_group : string list
-}
+and inductive = { name : string; params : (name * term) list; level : level; constrs : (int * term) list; mutual_group : string list }
 
 type env = (string * inductive) list
 type context = (name * term) list
-
-exception TypeError of string
+type subst_map = (name * term) list
 
 let empty_env : env = []
 let empty_ctx : context = []
 let add_var ctx x ty = (x, ty) :: ctx
 
-type subst_map = (name * term) list
+exception TypeError of string
+
+let lookup_var ctx x =
+    if (trace) then (Printf.printf "Looking up %s in context: [" x;
+                 (*  List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx; *)
+                     print_endline "]");
+    try Some (List.assoc x ctx) with Not_found -> None
 
 let rec subst_many m t =
     match t with
@@ -69,17 +67,6 @@ let rec equal env ctx t1 t2 =
     | J (ty, a, b, c, d, p), J (ty', a', b', c', d', p') -> equal env ctx ty ty' && equal env ctx a a' && equal env ctx b b' && equal env ctx c c' && equal env ctx d d' && equal env ctx p p'
     | _ -> t1 = t2
 
-and lookup_var ctx x =
-    if (trace) then (Printf.printf "Looking up %s in context: [" x;
-                     List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
-                     print_endline "]");
-    try Some (List.assoc x ctx) with Not_found -> None
-
-and apply_inductive d args =
-    if List.length d.params <> List.length args then raise (TypeError "Parameter mismatch in inductive type");
-    let subst_param t = List.fold_left2 (fun acc (n, _) arg -> subst n arg acc) t d.params args
-    in Inductive { d with constrs = List.map (fun (j, ty) -> (j, subst_param ty)) d.constrs }
-
 and infer env ctx t =
     match t with
     | Var x -> (match lookup_var ctx x with | Some ty -> ty | None -> raise (TypeError ("Unbound variable: " ^ x)))
@@ -116,11 +103,7 @@ and infer_J env ctx ty' a b c d p =
     let refl_case_ty = Pi ("x", ty', App (App (App (c, Var "x"), Var "x"), Refl (Var "x"))) in
     check env ctx d refl_case_ty; (* d : Π(x : A).C x x (refl x) *)
     check env ctx p (Id (ty', a, b)); (* p : Id (A, a, b) *)
-    let result_ty = App (App (App (c, a), b), p) in
-    (if (trace) then (Printf.printf "Checking J motive: "; print_term c; print_string " against "; print_term motive_ty; print_endline "";
-                      Printf.printf "Checking J reflexive case: "; print_term d; print_string " against "; print_term refl_case_ty; print_endline "";
-                      Printf.printf "J result type: "; print_term result_ty; print_endline "");
-    result_ty)
+    let result_ty = App (App (App (c, a), b), p) in (if (trace) then (print_J ty' a b c d p 0); result_ty)
 
 and infer_elim env ctx d p cases t' =
     let t_ty = infer env ctx t' in
@@ -132,12 +115,7 @@ and infer_elim env ctx d p cases t' =
     let p_ty = infer env ctx p in (match p_ty with | Universe _ -> () | _ -> raise (TypeError "Motive must be a type (Universe)"));
     if not (equal env ctx t_ty a) then raise (TypeError "Target type does not match motive domain");
     let result_ty = subst x t' b in
-    if (trace) then (Printf.printf "Checking elim for %s\n" d.name;
-                     Printf.printf "Target type: "; print_term t_ty; print_endline "";
-                     Printf.printf "Motive domain: "; print_term a; print_endline "";
-                     Printf.printf "Motive codomain: "; print_term b; print_endline "";
-                     Printf.printf "Motive type inferred: "; print_term p_ty; print_endline "";
-                     Printf.printf "Result type: "; print_term result_ty; print_endline "");
+    if (trace) then (print_elim d p cases t' 0);
     if List.length cases <> List.length d.constrs then raise (TypeError "Number of cases doesn't match constructors");
     List.iteri (fun j case ->
       let j_idx = j + 1 in
@@ -158,44 +136,27 @@ and infer_elim env ctx d p cases t' =
     ) cases;
     result_ty
 
+and apply_inductive d args =
+    if List.length d.params <> List.length args then raise (TypeError "Parameter mismatch in inductive type");
+    let subst_param t = List.fold_left2 (fun acc (n, _) arg -> subst n arg acc) t d.params args
+    in Inductive { d with constrs = List.map (fun (j, ty) -> (j, subst_param ty)) d.constrs }
+
 and check_universe env ctx t =
     match infer env ctx t with
     | Universe i -> i
     | _ -> raise (TypeError "Expected a universe")
 
-
 and check env ctx t ty =
     if (trace) then (Printf.printf "Checking: "; print_term t; print_string " against "; print_term ty; print_endline "");
     match t, ty with
-    | Pi (x, a, b), Pi (y, a', b') ->
-        if not (equal env ctx a a') then raise (TypeError "Pi domain mismatch");
-        let ctx' = add_var ctx x a in
-        check env ctx' b (subst y (Var x) b')
-    | Lam (x, domain, body), Pi (y, a, b) ->
-        check env ctx domain (infer env ctx domain);
-        check env (add_var ctx x domain) body b
-    | Constr (j, d, args), Inductive d' when d.name = d'.name ->
-        let inferred = infer env ctx t in if not (equal env ctx inferred ty) then raise (TypeError "Constructor type mismatch")
-    | Elim (d, p, cases, t'), ty ->
-        let inferred = infer_elim env ctx d p cases t' in
-        if not (equal env ctx inferred ty) then raise (TypeError "Elimination type mismatch")
-    | Pair (a, b), Sigma (x, a_ty, b_ty) ->
-        check env ctx a a_ty;
-        check env ctx b (subst x a b_ty)
-    | Fst p, ty ->
-        let p_ty = infer env ctx p in
-        (match p_ty with
-         | Sigma (x, a, _) -> if not (equal env ctx a ty) then raise (TypeError "Fst type mismatch")
-         | _ -> raise (TypeError "Fst expects a Sigma type"))
-    | Snd p, ty ->
-        let p_ty = infer env ctx p in
-        (match p_ty with
-         | Sigma (x, a, b) -> if not (equal env ctx (subst x (Fst p) b) ty) then raise (TypeError "Snd type mismatch")
-         | _ -> raise (TypeError "Snd expects a Sigma type"))
-    | Refl a, Id (ty, a', b') ->
-      let a_ty = infer env ctx a in
-      if not (equal env ctx a_ty ty) then raise (TypeError "Refl argument type mismatch");
-      if not (equal env ctx a a') || not (equal env ctx a b') then raise (TypeError "Refl arguments mismatch")
+    | Pi (x, a, b), Pi (y, a', b') -> if not (equal env ctx a a') then raise (TypeError "Pi domain mismatch"); let ctx' = add_var ctx x a in check env ctx' b (subst y (Var x) b')
+    | Lam (x, domain, body), Pi (y, a, b) -> check env ctx domain (infer env ctx domain); check env (add_var ctx x domain) body b
+    | Constr (j, d, args), Inductive d' when d.name = d'.name -> let inferred = infer env ctx t in if not (equal env ctx inferred ty) then raise (TypeError "Constructor type mismatch")
+    | Elim (d, p, cases, t'), ty -> let inferred = infer_elim env ctx d p cases t' in if not (equal env ctx inferred ty) then raise (TypeError "Elimination type mismatch")
+    | Pair (a, b), Sigma (x, a_ty, b_ty) -> check env ctx a a_ty; check env ctx b (subst x a b_ty)
+    | Fst p, ty -> let p_ty = infer env ctx p in (match p_ty with | Sigma (x, a, _) -> if not (equal env ctx a ty) then raise (TypeError "Fst type mismatch") | _ -> raise (TypeError "Fst expects a Sigma type"))
+    | Snd p, ty -> let p_ty = infer env ctx p in (match p_ty with | Sigma (x, a, b) -> if not (equal env ctx (subst x (Fst p) b) ty) then raise (TypeError "Snd type mismatch") | _ -> raise (TypeError "Snd expects a Sigma type"))
+    | Refl a, Id (ty, a', b') -> let a_ty = infer env ctx a in if not (equal env ctx a_ty ty) then raise (TypeError "Refl argument type mismatch"); if not (equal env ctx a a') || not (equal env ctx a b') then raise (TypeError "Refl arguments mismatch")
     | _, _ ->
         let inferred = infer env ctx t in
         let ty' = normalize env ctx ty in
@@ -203,25 +164,6 @@ and check env ctx t ty =
         match inferred, ty' with
         | Universe i, Universe j when i >= j -> () (* cumulativity *)
         | _ -> if not (equal env ctx inferred ty') then raise (TypeError "Type mismatch")
-
-and reduce env ctx t =
-    if (trace) then (Printf.printf "Reducing: "; print_term t; print_endline "");
-    match t with
-    | App (Lam (x, domain, body), arg) -> subst x arg body
-    | App (Pi (x, a, b), arg) -> subst x arg b
-    | App (f, arg) -> let f' = reduce env ctx f in if equal env ctx f f' then App (f, reduce env ctx arg) else App (f', arg)
-    | Elim (d, p, cases, Constr (j, d', args)) when d.name = d'.name ->
-      let case = List.nth cases (j - 1) in let cj = List.assoc j d.constrs in
-      let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in
-      apply_case env ctx d p cases case cj_subst args
-    | Elim (d, p, cases, t') -> let t'' = reduce env ctx t' in if equal env ctx t' t'' then t else Elim (d, p, cases, t'')
-    | Constr (j, d, args) -> Constr (j, d, List.map (reduce env ctx) args)
-    | Fst (Pair (a, b)) -> a
-    | Snd (Pair (a, b)) -> b
-    | J (ty, a, b, c, d, Refl a') when equal env ctx a a' && equal env ctx b a' -> if (trace) then (Printf.printf "Reducing J with refl: "; print_term t; print_string " to "; print_term (App (d, a)); print_endline ""); App (d, a)
-    | J (ty, a, b, c, d, p) -> let p' = reduce env ctx p in if equal env ctx p p' then t else J (ty, a, b, c, d, p')
-    | Refl a -> let a' = reduce env ctx a in if equal env ctx a a' then t else Refl a'
-    | _ -> t
 
 and apply_case env ctx d p cases case ty args =
     if (trace) then (Printf.printf "Applying case: "; print_term case; Printf.printf " to type: "; print_term ty; Printf.printf " with args: [";
@@ -253,6 +195,25 @@ and apply_case env ctx d p cases case ty args =
         in apply_term case (List.rev args_acc)
     | _ -> raise (TypeError "Constructor argument mismatch")
     in apply ty [] args
+
+and reduce env ctx t =
+    if (trace) then (Printf.printf "Reducing: "; print_term t; print_endline "");
+    match t with
+    | App (Lam (x, domain, body), arg) -> subst x arg body
+    | App (Pi (x, a, b), arg) -> subst x arg b
+    | App (f, arg) -> let f' = reduce env ctx f in if equal env ctx f f' then App (f, reduce env ctx arg) else App (f', arg)
+    | Elim (d, p, cases, Constr (j, d', args)) when d.name = d'.name ->
+      let case = List.nth cases (j - 1) in let cj = List.assoc j d.constrs in
+      let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in
+      apply_case env ctx d p cases case cj_subst args
+    | Elim (d, p, cases, t') -> let t'' = reduce env ctx t' in if equal env ctx t' t'' then t else Elim (d, p, cases, t'')
+    | Constr (j, d, args) -> Constr (j, d, List.map (reduce env ctx) args)
+    | Fst (Pair (a, b)) -> a
+    | Snd (Pair (a, b)) -> b
+    | J (ty, a, b, c, d, Refl a') when equal env ctx a a' && equal env ctx b a' -> if (trace) then (Printf.printf "Reducing J with refl: "; print_term t; print_string " to "; print_term (App (d, a)); print_endline ""); App (d, a)
+    | J (ty, a, b, c, d, p) -> let p' = reduce env ctx p in if equal env ctx p p' then t else J (ty, a, b, c, d, p')
+    | Refl a -> let a' = reduce env ctx a in if equal env ctx a a' then t else Refl a'
+    | _ -> t
 
 and normalize env ctx t =
     let t' = reduce env ctx t in

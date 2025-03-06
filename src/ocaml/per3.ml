@@ -380,14 +380,12 @@ let test () =
   let one = Constr (2, nat_def, [zero]) in
   let two = Constr (2, nat_def, [one]) in
   let add_term = App (App (plus, two), two) in
-
   let pair_term = Pair (zero, one) in
   let pair_ty = Sigma ("x", nat_ind, nat_ind) in
   let fst_term = Fst pair_term in
   let snd_term = Snd pair_term in
   let id_term = Refl zero in
   let id_ty = Id (nat_ind, zero, zero) in
-
   let sym_term = App (App (App (id_symmetry, zero), zero), Refl zero) in
   let trans_term = App (App (App (App (App (id_transitivity, zero), zero), zero), Refl zero), Refl zero) in
 

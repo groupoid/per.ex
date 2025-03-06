@@ -333,10 +333,8 @@ let id_transitivity = (* Transitivity: a = b ∧ b = c → a = c *)
       Lam ("_", nat_ind, Var "q"),
       Var "p"))))))
 
-let empty_ctx : context = []
-
 let test () =
-  let ctx = empty_ctx in
+  let ctx : context = [] in
   let zero = Constr (1, nat_def, []) in
   let one = Constr (2, nat_def, [zero]) in
   let two = Constr (2, nat_def, [one]) in

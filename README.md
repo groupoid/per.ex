@@ -296,6 +296,56 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
 ## Test
 
 ```
+let test () =
+  let ctx : context = [] in
+  let zero = Constr (1, nat_def, []) in
+  let one = Constr (2, nat_def, [zero]) in
+  let two = Constr (2, nat_def, [one]) in
+  let add_term = App (App (plus, two), two) in
+  let pair_term = Pair (zero, one) in
+  let pair_ty = Sigma ("x", nat_ind, nat_ind) in
+  let fst_term = Fst pair_term in
+  let snd_term = Snd pair_term in
+  let id_term = Refl zero in
+  let id_ty = Id (nat_ind, zero, zero) in
+  let sym_term = App (App (App (id_symmetry, zero), zero), Refl zero) in
+  let trans_term = App (App (App (App (App (id_transitivity, zero), zero), zero), Refl zero), Refl zero) in
+
+  try let succ_ty = infer env ctx succ in
+      let plus_ty = infer env ctx plus in
+      let nat_elim_ty = infer env ctx nat_elim in
+      let _ = check env ctx pair_term pair_ty in
+      let fst_ty = infer env ctx fst_term in
+      let snd_ty = infer env ctx snd_term in
+      let sym_ty = infer env ctx sym_term in
+      let _ = check env ctx id_term id_ty in
+      let trans_ty = infer env ctx trans_term in
+      let add_normal = normalize env empty_ctx add_term in
+
+      Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
+      Printf.printf "List.length: "; print_term (normalize env empty_ctx (App (list_length, sample_list))); print_endline "";
+      Printf.printf "Nat.Elim: "; print_term nat_elim; print_endline "";
+      Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";
+      Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline "";
+      Printf.printf "typeof(Nat.elim): "; print_term nat_elim_ty; print_endline "";
+      Printf.printf "typeof(Sigma.pair): "; print_term pair_term; print_endline "";
+      Printf.printf "typeof(Sigma.fst(Sigma.pair)): "; print_term fst_ty; print_endline "";
+      Printf.printf "typeof(Sigma.snd(Sigma.pair)): "; print_term snd_ty; print_endline "";
+      Printf.printf "typeof(id_symmetry): "; print_term sym_ty; print_endline "";
+      Printf.printf "symmetry reduces to: "; print_term (normalize env ctx sym_term); print_endline ""; 
+      Printf.printf "Checking id_term: "; print_term id_term; print_string " against "; print_term id_ty; print_endline ""; 
+      Printf.printf "typeof(id_term)=id_ty\n";
+      Printf.printf "norm(subst_eq): "; print_term (normalize env ctx subst_eq); print_endline "";
+      Printf.printf "norm(tran_term): "; print_term (normalize env ctx trans_term); print_endline "";
+      Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline "";
+      Printf.printf "List.Length: "; print_term (normalize env ctx (App (list_length, sample_list))); print_endline ""
+
+  with TypeError msg -> print_endline ("Type error: " ^ msg)
+
+let _ = test ()
+```
+
+```
 $ ocamlopt -o per induction.ml
 $ ./per
 ToEven: esucc succ zero

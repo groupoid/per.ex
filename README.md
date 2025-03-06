@@ -77,12 +77,12 @@ over full de Bruijn indices [3]). The recursive descent ensures congruence,
 but lacks normalization, making it weaker than CIC’s definitional equality,
 which includes β-reduction.
 
-* **Base Cases**: Variables `Var x` are equal if names match; universes `Universe i` if levels are identical.
+* **Terminal Cases**: Variables `Var x` are equal if names match; universes `Universe i` if levels are identical.
 * **Resursive Cases**: `App (f, arg)` requires equality of function and argument.
 `Pi (x, a, b)` compares domains and codomains, adjusting for variable renaming via substitution.
 `Inductive d` checks name, level, and parameters.
 `Constr` and `Elim` compare indices, definitions, and arguments/cases.
-* **Fallback**: Returns false for mismatched constructors.
+* Default: Returns false for mismatched constructors.
 
 **Theorem**. Equality is reflexive, symmetric, and transitive modulo
 α-equivalence (cf. [1], Section 2). For `Pi (x, a, b)` and `Pi (y, a', b')`,
@@ -92,7 +92,7 @@ ensuring capture-avoiding substitution preserves meaning.
 ### Context Variables Lookup `lookup_var ctx x`
 
 Retrieve a variable’s type from the context.
-Context are the objects in the categories of Substitutions.
+Context are the objects in the Substitutions categories.
 
 This linear search assumes a small context, which is inefficient
 for large ctx (O(n) complexity). A hash table (Second Lesson `per2.ml` of Tutorial)
@@ -102,7 +102,6 @@ systems where context mismatches are common.
 
 * Searches `ctx` for `(x, ty)` using `List.assoc`.
 * Returns `Some ty` if found, `None` otherwise.
-* Includes debugging output for transparency.
 
 **Theorem**: Context lookup is well-defined under uniqueness
 of names (cf. [1], Section 3). If `ctx = Γ, x : A, Δ`,
@@ -111,6 +110,7 @@ then `lookup_var ctx x = Some A`.
 ### Substitution Calculus `subst x s t`
 
 Substitute term `s` for variable `x` in term `t`.
+Substitutions are morphisms in Substitution categorties.
 
 The capture-avoiding check `if x = y` prevents variable capture
 but assumes distinct bound names, a simplification over full
@@ -127,55 +127,14 @@ aligning with CIC’s eliminator semantics.
 If `Γ ⊢ t : T` and `Γ ⊢ s : A`, then `Γ ⊢ t[x := s] : T[x := s]`
 under suitable conditions on x.
 
-### Inductive Instantiation `apply_inductive d args`
+### Type Inference `infer env ctx t`
 
-Instantiate an inductive type’s constructors with parameters.
+Infer the type of term `t` in context `ctx` and environment `env`.
 
-This function ensures type-level parametricity, critical for
-polymorphic inductives like List A. The fold-based substitution
-avoids explicit recursion, leveraging OCaml’s functional style,
-but assumes args are well-typed, deferring validation to infer.
-
-* Validates argument count against d.params.
-* Substitutes each parameter into constructor types using subst_param.
-
-**Theorem**: Parameter application preserves inductiveness (cf. [4], Section 4).
-If `D` is an inductive type with parameters `P`, then `D[P]` is
-well-formed with substituted constructors.
-
-### Check Universes `check_universe env ctx t`
-
-Ensure `t` is a universe, returning its level.
-Infers type of `t`, expects `Universe i`.
-
-This auxiliary enforces universe hierarchy, preventing
-paradoxes (e.g., Type : Type). It relies on infer,
-assuming its correctness, and throws errors for
-non-universe types, aligning with ITT’s stratification.
-
-**Theorem**: Universe checking is decidable (cf. [12]).
-If `ctx ⊢ t : Universe i`, then `check_universe env ctx t = i`.
-
-### Check `check env ctx t ty`
-
-Check that `t` has type `ty`.
-
-* `Lam`: Ensures the domain is a type, extends the context, and checks the body against the codomain.
-* `Constr`: Infers the constructor’s type and matches it to the expected inductive type.
-* `Elim`: Computes the elimination type via check_elim and verifies it equals ty.
-* Default: Infers t’s type, normalizes ty, and checks equality.
-
-The function leverages bidirectional typing: specific cases (e.g., `Lam`)
-check directly, while the default case synthesizes via infer and compares
-with a normalized ty, ensuring definitional equality (β-reduction).
-Completeness hinges on normalize terminating (ITT’s strong normalization)
-and equal capturing judgmental equality. Complexity is O(n·m) (term size n,
-reduction steps m), with debugging output exposing mismatches, crucial for
-dependent types where errors are subtle.
-
-**Theorem**. Type checking is complete (cf. [1], Section III, Normalization; [8], Section 4.7).
-If `ctx ⊢ t : T` in the type theory, then `check env ctx t T` succeeds,
-assuming normalization and sound inference.
+For `Pi` and `Lam`, universe levels ensure consistency
+(e.g., `Type i : Type (i + 1)`), while `Elim` handles induction,
+critical for dependent elimination. Note that lambda agrument should be typed
+for easier type synthesis [13].
 
 ### Infer Contstructor `infer_ctor env ctx ty args`
 
@@ -217,22 +176,71 @@ with constructors `c_j`, if `ctx ⊢ t : D` and `ctx ⊢ P : D → Type_i`,
 and each case case_j has type `Πx:A_j.P(c_j x)` where `A_j` are
 the argument types of `c_j` (including recursive hypotheses), then `ctx ⊢ Elim(D, P, cases, t) : P t`.
 
+### Inductive Instantiation `apply_inductive d args`
+
+Instantiate an inductive type’s constructors with parameters, used only in `infer_Elim`.
+
+This function ensures type-level parametricity, critical for
+polymorphic inductives like List A. The fold-based substitution
+avoids explicit recursion, leveraging OCaml’s functional style,
+but assumes args are well-typed, deferring validation to infer.
+
+* Validates argument count against d.params.
+* Substitutes each parameter into constructor types using subst_param.
+
+**Theorem**: Parameter application preserves inductiveness (cf. [4], Section 4).
+If `D` is an inductive type with parameters `P`, then `D[P]` is
+well-formed with substituted constructors.
+
 ### Infer Equality Induction `infer_J env ctx ty a b c d p`
 
-### Type Inference `infer env ctx t`
+### Check Universes `check_universe env ctx t`
 
-Infer the type of term `t` in context `ctx` and environment `env`.
+Ensure `t` is a universe, returning its level.
+Infers type of `t`, expects `Universe i`.
 
-For `Pi` and `Lam`, universe levels ensure consistency
-(e.g., `Type i : Type (i + 1)`), while `Elim` handles induction,
-critical for dependent elimination. Debugging prints expose
-inference steps, vital for diagnosing failures in complex terms.
+This auxiliary enforces universe hierarchy, preventing
+paradoxes (e.g., Type : Type). It relies on infer,
+assuming its correctness, and throws errors for
+non-universe types, aligning with ITT’s stratification.
+
+**Theorem**: Universe checking is decidable (cf. [12]).
+If `ctx ⊢ t : Universe i`, then `check_universe env ctx t = i`.
+
+### Check `check env ctx t ty`
+
+Check that `t` has type `ty`.
+
+* `Lam`: Ensures the domain is a type, extends the context, and checks the body against the codomain.
+* `Constr`: Infers the constructor’s type and matches it to the expected inductive type.
+* `Elim`: Computes the elimination type via check_elim and verifies it equals ty.
+* Default: Infers t’s type, normalizes ty, and checks equality.
+
+The function leverages bidirectional typing: specific cases (e.g., `Lam`)
+check directly, while the default case synthesizes via infer and compares
+with a normalized ty, ensuring definitional equality (β-reduction).
+Completeness hinges on normalize terminating (ITT’s strong normalization)
+and equal capturing judgmental equality. Complexity is O(n·m) (term size n,
+reduction steps m), with debugging output exposing mismatches, crucial for
+dependent types where errors are subtle.
+
+**Theorem**. Type checking is complete (cf. [1], Section III, Normalization; [8], Section 4.7).
+If `ctx ⊢ t : T` in the type theory, then `check env ctx t T` succeeds,
+assuming normalization and sound inference.
 
 ### Case Branch `apply_case env ctx d p cases case ty args`
 
-Apply a case branch to constructor arguments.
+Apply a case branch to constructor arguments, used only in `reduce`.
 
-This function realizes CIC’s ι-reduction for inductive eliminators [8], where a case branch is applied to constructor arguments, including recursive hypotheses. For Nat’s succ in plus, ty = Πn:Nat.Nat, case = λk.λih.succ ih, and args = [n]. The recursive check (a = Inductive d) triggers for n : Nat, computing ih = Elim(Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], n), ensuring succ ih : Nat. The nested apply_term handles multi-argument lambdas (e.g., k and ih), avoiding explicit uncurrying, while substitution preserves typing per CIC’s rules. Complexity is O(n·m) (term size n, recursive reduction depth m), with debugging prints tracing hypothesis generation, critical for verifying induction steps (e.g., plus m (succ n) → succ (plus m n)).
+This function realizes CIC’s ι-reduction for inductive eliminators [8], where
+a case branch is applied to constructor arguments, including recursive hypotheses.
+For Nat’s succ in plus, `ty = Πn:Nat.Nat`, `case = λk.λih.succ ih`, and `args = [n]`.
+The recursive check `a = Inductive d` triggers for `n : Nat`, computing `ih = Elim(Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], n)`,
+ensuring `succ ih : Nat`. The nested apply_term handles multi-argument lambdas
+(e.g., k and ih), avoiding explicit uncurrying, while substitution preserves
+typing per CIC’s rules. Complexity is O(n·m) (term size n, recursive reduction
+depth m), with debugging prints tracing hypothesis generation, critical for
+verifying induction steps, e.g. `plus m (succ n) → succ (plus m n)`.
 
 **Theorem**. Case application is sound (cf. [8],
 Section 4.5, Elimination Typing; [1], Section 5, Elimination Rule).
@@ -309,7 +317,8 @@ Sample list: cons zero cons succ zero nil
 [9]. Dybjer, P. (1997). Inductive families.<br>
 [10]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.<br>
 [11]. Harper, R., & Licata, D. (2007). Mechanizing metatheory in a logical framework.<br>
-[12]. Marc Bezem, Thierry Coquand, Peter Dybjer, Martín Escardó. <a href="https://arxiv.org/pdf/2212.03284">Type Theory with Explicit Universe Polymorphism</a>
+[12]. Marc Bezem, Thierry Coquand, Peter Dybjer, Martín Escardó. <a href="https://arxiv.org/pdf/2212.03284">Type Theory with Explicit Universe Polymorphism</a><br>
+[13]. Thierry Coquand. "An Algorithm for Type-Checking Dependent Types" (1996), published in Science of Computer Programming.<br>
 
 ## Author
 

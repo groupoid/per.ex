@@ -90,7 +90,7 @@ and infer env ctx t =
       let result = Pi (x, domain, body_ty) in
       (if (trace) then (Printf.printf "Inferring Lam %s: domain = " x; print_term domain; print_endline "";
                         Printf.printf "Inferred body type: "; print_term body_ty; print_endline "";
-                        Printf.printf "Returning Pi type: "; print_term pi_ty; print_endline "");
+                        Printf.printf "Returning Pi type: "; print_term result; print_endline "");
       result)
     | App (f, arg) ->
       (match infer env ctx f with

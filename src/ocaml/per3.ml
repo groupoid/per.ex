@@ -362,7 +362,7 @@ let test () =
       let add_normal = normalize env ctx add_term in
 
       Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
-      Printf.printf "List.length: "; print_term (normalize env empty_ctx (App (list_length, sample_list))); print_endline "";
+      Printf.printf "List.length: "; print_term (normalize env ctx (App (list_length, sample_list))); print_endline "";
       Printf.printf "Nat.Elim: "; print_term nat_elim; print_endline "";
       Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";
       Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline "";

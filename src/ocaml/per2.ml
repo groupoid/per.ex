@@ -192,6 +192,7 @@ let rec infer env ctx t =
             let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in
             check_constructor_args env ctx cj_subst args
         | Elim (d, p, cases, t') -> check_elim env ctx d p cases t'
+        | _ -> Universe 0
       in
       Hashtbl.replace memo key (Some result);
       result

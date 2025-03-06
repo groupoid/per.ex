@@ -376,7 +376,8 @@ let test () =
       Printf.printf "typeof(id_term)=id_ty\n";
       Printf.printf "norm(subst_eq): "; print_term (normalize env ctx subst_eq); print_endline "";
       Printf.printf "norm(tran_term): "; print_term (normalize env ctx trans_term); print_endline "";
-      Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline ""
+      Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline "";
+      Printf.printf "List.Length: "; print_term (normalize env ctx (App (list_length, sample_list))); print_endline ""
 
   with TypeError msg -> print_endline ("Type error: " ^ msg)
 

@@ -172,9 +172,8 @@ and check_elim env ctx d p cases t' =
     check env ctx case expected_ty;
     if (trace) then Printf.printf "Case %d checked\n" j
   ) cases;
-  result_ty  (* Return the type of the elimination *)
+  result_ty
 
-(* Type checking *)
 and check env ctx t ty =
   match t, ty with
   | Lam (x, domain, body), Pi (y, a, b) ->
@@ -196,14 +195,13 @@ and check env ctx t ty =
          if not (equal env ctx inferred ty') then raise (TypeError "Type mismatch")
       )
 
-(* Reduction function: one-step reduction *)
 and reduce env ctx t =
   if (trace) then (Printf.printf "Reducing: "; print_term t; print_endline "");
   match t with
   | App (Lam (x, domain, body), arg) ->
       if (trace) then (Printf.printf "Beta reducing: %s with " x; print_term arg; print_endline "");
       subst x arg body
-  | App (Pi (x, a, b), arg) ->  (* New case for Pi application *)
+  | App (Pi (x, a, b), arg) ->
       if (trace) then (Printf.printf "Reducing Pi application: "; print_term (Pi (x, a, b)); print_string " with "; print_term arg; print_endline "");
       subst x arg b
   | App (f, arg) ->
@@ -229,7 +227,6 @@ and reduce env ctx t =
       Constr (j, d, List.map (reduce env ctx) args)
   | _ -> t
 
-(* Fixed apply_case *)
 and apply_case env ctx d p cases case ty args =
   if (trace) then (Printf.printf "Applying case: "; print_term case; Printf.printf " to type: "; print_term ty; Printf.printf " with args: [";
                    List.iter (fun arg -> print_term arg; print_string "; ") args;
@@ -250,7 +247,7 @@ and apply_case env ctx d p cases case ty args =
         in
         let new_args_acc = 
           match rec_arg with
-          | Some r -> r :: arg :: args_acc  (* Include both k and ih *)
+          | Some r -> r :: arg :: args_acc
           | None -> arg :: args_acc
         in
         apply b' new_args_acc rest
@@ -266,7 +263,6 @@ and apply_case env ctx d p cases case ty args =
   in
   apply ty [] args
 
-(* Normalization *)
 and normalize env ctx t =
   let t' = reduce env ctx t in
   if (trace) then (Printf.printf "Reduced to: "; print_term t'; print_endline "");

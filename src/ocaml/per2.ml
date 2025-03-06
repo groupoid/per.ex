@@ -238,14 +238,10 @@ and check_elim env ctx d p cases t' =
           let var = Var x in
           let ctx' = add_var ctx_acc x a in
           let b_ty = compute_case_type b ctx' in
-          if equal env ctx a d_applied then
-            Pi (x, a, Pi ("ih", normalize env ctx (App (p, var)), b_ty))
-          else Pi (x, a, b_ty)
+          if equal env ctx a d_applied then Pi (x, a, Pi ("ih", normalize env ctx (App (p, var)), b_ty)) else Pi (x, a, b_ty)
       | Inductive d' when d'.name = d.name ->
           (match normalize env ctx p with
-           | Pi (x, _, b) ->
-               let constr = Constr (j_idx, d, []) in
-               normalize env ctx (subst x constr b)
+           | Pi (x, _, b) -> let constr = Constr (j_idx, d, []) in normalize env ctx (subst x constr b)
            | _ -> raise (TypeError "Motive must be a Pi type"))
       | _ -> raise (TypeError "Invalid constructor return type")
     in

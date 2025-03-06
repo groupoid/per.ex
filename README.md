@@ -228,7 +228,7 @@ dependent types where errors are subtle.
 If `ctx ⊢ t : T` in the type theory, then `check env ctx t T` succeeds,
 assuming normalization and sound inference.
 
-### Case Branch `apply_case env ctx d p cases case ty args`
+### Branch Evaluation `apply_case env ctx d p cases case ty args`
 
 Apply a case branch to constructor arguments, used only in `reduce`.
 

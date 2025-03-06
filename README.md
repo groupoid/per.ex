@@ -255,7 +255,7 @@ via β-reduction or inductive elimination, then `ctx ⊢ t' : T`.
 
 Apply a case branch to constructor arguments.
 
-This function realizes CIC’s ι-reduction for inductive eliminators [5], where a case branch is applied to constructor arguments, including recursive hypotheses. For Nat’s succ in plus, ty = Πn:Nat.Nat, case = λk.λih.succ ih, and args = [n]. The recursive check (a = Inductive d) triggers for n : Nat, computing ih = Elim(Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], n), ensuring succ ih : Nat. The nested apply_term handles multi-argument lambdas (e.g., k and ih), avoiding explicit uncurrying, while substitution preserves typing per CIC’s rules. Complexity is O(n·m) (term size n, recursive reduction depth m), with debugging prints tracing hypothesis generation, critical for verifying induction steps (e.g., plus m (succ n) → succ (plus m n)).
+This function realizes CIC’s ι-reduction for inductive eliminators [8], where a case branch is applied to constructor arguments, including recursive hypotheses. For Nat’s succ in plus, ty = Πn:Nat.Nat, case = λk.λih.succ ih, and args = [n]. The recursive check (a = Inductive d) triggers for n : Nat, computing ih = Elim(Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], n), ensuring succ ih : Nat. The nested apply_term handles multi-argument lambdas (e.g., k and ih), avoiding explicit uncurrying, while substitution preserves typing per CIC’s rules. Complexity is O(n·m) (term size n, recursive reduction depth m), with debugging prints tracing hypothesis generation, critical for verifying induction steps (e.g., plus m (succ n) → succ (plus m n)).
 
 **Theorem**. Case application is sound (cf. [8],
 Section 4.5, Elimination Typing; [1], Section 5, Elimination Rule).

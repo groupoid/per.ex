@@ -308,7 +308,7 @@ let test () =
   let snd_term = Snd pair_term in
   let id_term = Refl zero in
   let id_ty = Id (nat_ind, zero, zero) in
-  let sym_term = App (App (App (id_symmetry, zero), zero), Refl zero) in
+  let sym_term = normalize env ctx (App (App (App (id_symmetry, zero), zero), Refl zero)) in
   let trans_term = App (App (App (App (App (id_transitivity, zero),
                    zero), zero), Refl zero), Refl zero) in
 
@@ -334,7 +334,7 @@ let test () =
       Printf.printf "typeof(Sigma.fst(Sigma.pair)): "; print_term fst_ty; print_endline "";
       Printf.printf "typeof(Sigma.snd(Sigma.pair)): "; print_term snd_ty; print_endline "";
       Printf.printf "typeof(id_symmetry): "; print_term sym_ty; print_endline "";
-      Printf.printf "symmetry reduces to: "; print_term (normalize env ctx sym_term); print_endline ""; 
+      Printf.printf "symmetry reduces to: "; print_term ; print_endline ""; 
       Printf.printf "Checking id_term: "; print_term id_term; print_string " against ";
                     print_term id_ty; print_endline ""; 
       Printf.printf "typeof(id_term)=id_ty\n";

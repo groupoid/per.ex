@@ -321,9 +321,10 @@ let test () =
       let _ = check env ctx id_term id_ty in
       let trans_ty = infer env ctx trans_term in
       let add_normal = normalize env empty_ctx add_term in
+      let list_len = normalize env empty_ctx (App (list_length, sample_list)) in
 
       Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
-      Printf.printf "List.length: "; print_term (normalize env empty_ctx (App (list_length, sample_list))); print_endline "";
+      Printf.printf "List.length: "; print_term list_len; print_endline "";
       Printf.printf "Nat.Elim: "; print_term nat_elim; print_endline "";
       Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";
       Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline "";
@@ -356,7 +357,9 @@ typeof(Nat.elim): Type0
 typeof(Sigma.pair): (Nat.1, Nat.2Nat.1)
 typeof(Sigma.fst(Sigma.pair)): Nat
 typeof(Sigma.snd(Sigma.pair)): Nat
-typeof(id_symmetry): (((Π(x : Nat).Π(y : Nat).Π(p : {x = y : Nat}).{y = x : Nat} Nat.1) Nat.1) Id.refl Nat.1)
+typeof(id_symmetry): (((Π(x : Nat).Π(y : Nat).
+                        Π(p : {x = y : Nat}).{y = x : Nat} Nat.1) Nat.1) Id.refl Nat.1)
+
 symmetry reduces to: Id.refl Nat.1
 Checking id_term: Id.refl Nat.1 against {Nat.1 = Nat.1 : Nat}
 typeof(id_term)=id_ty

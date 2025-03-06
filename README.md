@@ -309,7 +309,8 @@ let test () =
   let id_term = Refl zero in
   let id_ty = Id (nat_ind, zero, zero) in
   let sym_term = App (App (App (id_symmetry, zero), zero), Refl zero) in
-  let trans_term = App (App (App (App (App (id_transitivity, zero), zero), zero), Refl zero), Refl zero) in
+  let trans_term = App (App (App (App (App (id_transitivity, zero),
+                   zero), zero), Refl zero), Refl zero) in
 
   try let succ_ty = infer env ctx succ in
       let plus_ty = infer env ctx plus in

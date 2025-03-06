@@ -324,23 +324,7 @@ let test () =
       let add_normal = normalize env empty_ctx add_term in
       let list_len = normalize env empty_ctx (App (list_length, sample_list)) in
 
-      Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
-      Printf.printf "List.length: "; print_term list_len; print_endline "";
-      Printf.printf "Nat.Elim: "; print_term nat_elim; print_endline "";
-      Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";
-      Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline "";
-      Printf.printf "typeof(Nat.elim): "; print_term nat_elim_ty; print_endline "";
-      Printf.printf "typeof(Sigma.pair): "; print_term pair_term; print_endline "";
-      Printf.printf "typeof(Sigma.fst(Sigma.pair)): "; print_term fst_ty; print_endline "";
-      Printf.printf "typeof(Sigma.snd(Sigma.pair)): "; print_term snd_ty; print_endline "";
-      Printf.printf "typeof(id_symmetry): "; print_term sym_ty; print_endline "";
-      Printf.printf "symmetry reduces to: "; print_term ; print_endline ""; 
-      Printf.printf "Checking id_term: "; print_term id_term; print_string " against ";
-                    print_term id_ty; print_endline ""; 
-      Printf.printf "typeof(id_term)=id_ty\n";
-      Printf.printf "norm(subst_eq): "; print_term subst_norm; print_endline "";
-      Printf.printf "norm(tran_term): "; print_term trans_norm; print_endline "";
-      Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline "";
+      ...
 
   with TypeError msg -> print_endline ("Type error: " ^ msg)
 
@@ -349,24 +333,23 @@ let _ = test ()
 
 ```
 $ ./per
-Nat.add: Nat.2Nat.2Nat.2Nat.2Nat.1
-List.length: Nat.2Nat.2Nat.1
-Nat.Elim: Nat.elim Π(x : Nat).Type0 [Nat; λ (n), λ (ih), ih] Nat.1
-typeof(Nat.succ): Π(n : Nat).Nat
-typeof(Nat.plus): Π(m : Nat).Π(n : Nat).Nat
-typeof(Nat.elim): Type0
-typeof(Sigma.pair): (Nat.1, Nat.2Nat.1)
-typeof(Sigma.fst(Sigma.pair)): Nat
-typeof(Sigma.snd(Sigma.pair)): Nat
-typeof(id_symmetry): {Nat.1 = Nat.1 : Nat}
-symmetry reduces to: Id.refl Nat.1
-Checking id_term: Id.refl Nat.1 against {Nat.1 = Nat.1 : Nat}
-typeof(id_term)=id_ty
-norm(tran_term): Id.refl Nat.1
-norm(subst_eq): λ (a), λ (b), λ (p), λ (P), λ (x),
-                J (Nat, a, b, Π(x : Nat).Π(y : Nat).Π(p : {x = y : Nat}).(P y), λ (x), x, p)
-typeof(id_transitivity): (((Π(x : Nat).Π(y : Nat).
-                Π (_ : {x = y : Nat}).{Nat.1 = Nat.1 : Nat} Nat.1) Nat.1) Id.refl Nat.1)
+eval Nat.add(2,2) = Nat.2 Nat.2 Nat.2 Nat.2 Nat.1
+eval List.length(list) = Nat.2 Nat.2 Nat.1
+Nat.Elim = Nat.elim (Π (x : Nat), Type0) [Nat; λ (n), λ (ih), ih] Nat.1
+Nat.succ : Π (n : Nat), Nat
+Nat.plus : Π (m : Nat), П (n : Nat), Nat
+Nat.elim : Type0
+Sigma.pair(1,2) = (Nat.1, Nat.2 Nat.1)
+Sigma.fst(Sigma.pair(_,_)) : Nat
+Sigma.snd(Sigma.pair(_,_)) : Nat
+id_symmetry : {Nat.1 = Nat.1 : Nat}
+eval id_symmetry = Id.refl Nat.1
+id_term : id_ty
+eval tran_term = Id.refl Nat.1
+eval subst_eq : λ (a), λ (b), λ (p), λ (P), λ (x),
+  J (Nat, a, b, Π(x : Nat).Π(y : Nat).Π(p : {x = y : Nat}).(P y), λ (x), x, p)
+id_transitivity : (((Π(x : Nat).Π(y : Nat).
+  Π (_ : {x = y : Nat}).{Nat.1 = Nat.1 : Nat} Nat.1) Nat.1) Id.refl Nat.1)
 ```
 
 ## CIC

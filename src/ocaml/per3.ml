@@ -360,23 +360,23 @@ let test () =
       let trans_norm = normalize env ctx trans_term in
       let subst_norm = normalize env ctx subst_eq in
       let add_normal = normalize env ctx add_term in
+      let len_normal = normalize env ctx (App (list_length, sample_list)) in
 
-      Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
-      Printf.printf "List.length: "; print_term (normalize env ctx (App (list_length, sample_list))); print_endline "";
-      Printf.printf "Nat.Elim: "; print_term nat_elim; print_endline "";
-      Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";
-      Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline "";
-      Printf.printf "typeof(Nat.elim): "; print_term nat_elim_ty; print_endline "";
-      Printf.printf "typeof(Sigma.pair): "; print_term pair_term; print_endline "";
-      Printf.printf "typeof(Sigma.fst(Sigma.pair)): "; print_term fst_ty; print_endline "";
-      Printf.printf "typeof(Sigma.snd(Sigma.pair)): "; print_term snd_ty; print_endline "";
-      Printf.printf "typeof(id_symmetry): "; print_term sym_ty; print_endline "";
-      Printf.printf "symmetry reduces to: "; print_term sym_term; print_endline ""; 
-      Printf.printf "Checking id_term: "; print_term id_term; print_string " against "; print_term id_ty; print_endline ""; 
-      Printf.printf "typeof(id_term)=id_ty\n";
-      Printf.printf "norm(subst_eq): "; print_term subst_norm; print_endline "";
-      Printf.printf "norm(tran_term): "; print_term trans_norm; print_endline "";
-      Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline "";
+      Printf.printf "eval Nat.add(2,2) = "; print_term add_normal; print_endline "";
+      Printf.printf "eval List.length(list) = "; print_term len_normal; print_endline "";
+      Printf.printf "Nat.Elim = "; print_term nat_elim; print_endline "";
+      Printf.printf "Nat.succ : "; print_term succ_ty; print_endline "";
+      Printf.printf "Nat.plus : "; print_term plus_ty; print_endline "";
+      Printf.printf "Nat.elim : "; print_term nat_elim_ty; print_endline "";
+      Printf.printf "Sigma.pair = "; print_term pair_term; print_endline "";
+      Printf.printf "Sigma.fst(Sigma.pair) : "; print_term fst_ty; print_endline "";
+      Printf.printf "Sigma.snd(Sigma.pair) : "; print_term snd_ty; print_endline "";
+      Printf.printf "id_symmetry : "; print_term sym_ty; print_endline "";
+      Printf.printf "eval id_symmetry = "; print_term sym_term; print_endline ""; 
+      Printf.printf "id_term : id_ty\n";
+      Printf.printf "eval tran_term = "; print_term trans_norm; print_endline "";
+      Printf.printf "eval subst_eq = "; print_term subst_norm; print_endline "";
+      Printf.printf "id_transitivity : "; print_term trans_ty; print_endline "";
 
   with TypeError msg -> print_endline ("Type error: " ^ msg)
 

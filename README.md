@@ -334,12 +334,12 @@ let test () =
       Printf.printf "typeof(Sigma.snd(Sigma.pair)): "; print_term snd_ty; print_endline "";
       Printf.printf "typeof(id_symmetry): "; print_term sym_ty; print_endline "";
       Printf.printf "symmetry reduces to: "; print_term (normalize env ctx sym_term); print_endline ""; 
-      Printf.printf "Checking id_term: "; print_term id_term; print_string " against "; print_term id_ty; print_endline ""; 
+      Printf.printf "Checking id_term: "; print_term id_term; print_string " against ";
+                    print_term id_ty; print_endline ""; 
       Printf.printf "typeof(id_term)=id_ty\n";
       Printf.printf "norm(subst_eq): "; print_term (normalize env ctx subst_eq); print_endline "";
       Printf.printf "norm(tran_term): "; print_term (normalize env ctx trans_term); print_endline "";
       Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline "";
-      Printf.printf "List.Length: "; print_term (normalize env ctx (App (list_length, sample_list))); print_endline ""
 
   with TypeError msg -> print_endline ("Type error: " ^ msg)
 
@@ -364,7 +364,6 @@ symmetry reduces to: Id.refl Nat.1
 Checking id_term: Id.refl Nat.1 against {Nat.1 = Nat.1 : Nat}
 typeof(id_term)=id_ty
 norm(tran_term): Id.refl Nat.1
-List.Length: Nat.2Nat.2Nat.1
 norm(subst_eq): λ (a), λ (b), λ (p), λ (P), λ (x),
                 J (Nat, a, b, Π(x : Nat).Π(y : Nat).Π(p : {x = y : Nat}).(P y), λ (x), x, p)
 ```

@@ -513,11 +513,11 @@ let test () =
     check env ctx id_term id_ty;
     Printf.printf "Refl typechecks\n";
 
-(*  let trans_ty = infer env ctx trans_term in 
+    let trans_ty = infer env ctx trans_term in 
     Printf.printf "typeof(transitivity zero one one refl refl): "; print_term trans_ty; print_endline "";  
     Printf.printf "transitivity reduces to: "; print_term (normalize env ctx trans_term); print_endline ""; 
     Printf.printf "Checking id_term: "; print_term id_term; print_string " against "; print_term id_ty; print_endline ""; 
-*)
+
     with TypeError msg -> print_endline ("Type error: " ^ msg)
 
 let _ = test ()

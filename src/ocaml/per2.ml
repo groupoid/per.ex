@@ -6,20 +6,11 @@ type level = int
 type name = string
 
 type term =
-  | Var of name
-  | Universe of level
-  | Pi of name * term * term
-  | Lam of name * term * term
-  | App of term * term
-  | Sigma of name * term * term
-  | Pair of term * term
-  | Fst of term
-  | Snd of term
-  | Id of term * term * term
-  | Refl of term
-  | Inductive of inductive
-  | Constr of int * inductive * term list
-  | Elim of inductive * term * term list * term
+  | Var of name | Universe of level
+  | Pi of name * term * term | Lam of name * term * term | App of term * term
+  | Sigma of name * term * term | Pair of term * term | Fst of term | Snd of term
+  | Id of term * term * term | Refl of term
+  | Inductive of inductive | Constr of int * inductive * term list | Elim of inductive * term * term list * term
 
 and inductive = {
   name : string;

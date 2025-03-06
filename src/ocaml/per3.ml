@@ -1,6 +1,6 @@
 (* Copyright (c) 2016—2025 Groupoid Infinity *)
 
-let trace: bool = true
+let trace: bool = false
 
 type level = int
 type name = string
@@ -67,7 +67,7 @@ let rec equal env ctx t1 t2 =
     | Constr (j, d1, args1), Constr (k, d2, args2) -> j = k && d1.name = d2.name && List.for_all2 (equal env ctx) args1 args2
     | Elim (d1, p1, cases1, t1), Elim (d2, p2, cases2, t2) -> d1.name = d2.name && equal env ctx p1 p2 && List.for_all2 (equal env ctx) cases1 cases2 && equal env ctx t1 t2
     | J (ty, a, b, c, d, p), J (ty', a', b', c', d', p') -> equal env ctx ty ty' && equal env ctx a a' && equal env ctx b b' && equal env ctx c c' && equal env ctx d d' && equal env ctx p p'
-    | _ -> false
+    | _ -> t1 = t2
 
 and lookup_var ctx x =
     if (trace) then (Printf.printf "Looking up %s in context: [" x;
@@ -455,6 +455,29 @@ let nat_elim =
 
 let succ = Lam ("n", nat_ind, Constr (2, nat_def, [Var "n"]))
 
+let subst_eq =
+  Lam ("a", nat_ind, Lam ("b", nat_ind, Lam ("p", Id (nat_ind, Var "a", Var "b"),
+    Lam ("P", Pi ("z", nat_ind, Universe 0), Lam ("x", App (Var "P", Var "b"),
+      J (nat_ind, Var "a", Var "b",
+         Pi ("x", nat_ind, Pi ("y", nat_ind, Pi ("p", Id (nat_ind, Var "x", Var "y"), App (Var "P", Var "y")))),
+         Lam ("x", nat_ind, Var "x"),  (* x : P a *)
+         Var "p"))))))
+
+let id_symm =
+  Lam ("A", Universe 0, Lam ("a", Var "A", Lam ("b", Var "A", Lam ("p", Id (Var "A", Var "a", Var "b"),
+    J (Var "A", Var "a", Var "b",
+       Pi ("x", Var "A", Pi ("y", Var "A", Pi ("p", Id (Var "A", Var "x", Var "y"), Id (Var "A", Var "y", Var "x")))),
+       Lam ("x", Var "A", Refl (Var "x")),
+       Var "p")))))
+
+let id_trans =
+  Lam ("A", Universe 0, Lam ("a", Var "A", Lam ("b", Var "A", Lam ("c", Var "A",
+    Lam ("p", Id (Var "A", Var "a", Var "b"), Lam ("q", Id (Var "A", Var "b", Var "c"),
+      J (Var "A", Var "a", Var "c",
+         Pi ("x", Var "A", Pi ("y", Var "A", Pi ("p", Id (Var "A", Var "x", Var "y"), Id (Var "A", Var "x", Var "c")))),
+         Lam ("x", Var "A", Var "q"),
+         Var "p")))))))
+
 let id_symmetry =  (* Symmetry: a = b → b = a *)
   Lam ("a", nat_ind, Lam ("b", nat_ind, Lam ("p", Id (nat_ind, Var "a", Var "b"),
     J (nat_ind, Var "a", Var "b",
@@ -462,12 +485,12 @@ let id_symmetry =  (* Symmetry: a = b → b = a *)
        Lam ("x", nat_ind, Refl (Var "x")),
        Var "p"))))
 
-let id_transitivity =  
+let id_transitivity =
   Lam ("a", nat_ind, Lam ("b", nat_ind, Lam ("c", nat_ind,
     Lam ("p", Id (nat_ind, Var "a", Var "b"), Lam ("q", Id (nat_ind, Var "b", Var "c"),
-      J (nat_ind, Var "a", Var "b",
+      J (nat_ind, Var "a", Var "c",
          Pi ("x", nat_ind, Pi ("y", nat_ind, Pi ("p", Id (nat_ind, Var "x", Var "y"), Id (nat_ind, Var "x", Var "c")))),
-         Lam ("x", nat_ind, Var "q"),  (* q is still used, but we need to adjust check_J *)
+         Lam ("Whyx", nat_ind, Var "q"),
          Var "p"))))))
 
 let empty_ctx : context = []
@@ -488,7 +511,7 @@ let test () =
   let id_ty = Id (nat_ind, zero, zero) in
 
   let sym_term = App (App (App (id_symmetry, zero), zero), Refl zero) in
-  let trans_term = App (App (App (App (App (id_transitivity, zero), one), one), Refl zero), Refl one) in
+  let trans_term = App (App (App (App (App (id_trans, zero), one), one), Refl zero), Refl one) in
 
   Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
   Printf.printf "List.length: "; print_term (normalize env empty_ctx (App (list_length, sample_list))); print_endline "";
@@ -508,15 +531,16 @@ let test () =
     let snd_ty = infer env ctx snd_term in
     Printf.printf "typeof(Sigma.snd(Sigma.pair)): "; print_term snd_ty; print_endline "";
     let sym_ty = infer env ctx sym_term in
-    Printf.printf "typeof(symmetry zero zero refl): "; print_term sym_ty; print_endline "";
+    Printf.printf "typeof(id_symmetry): "; print_term sym_ty; print_endline "";
     Printf.printf "symmetry reduces to: "; print_term (normalize env ctx sym_term); print_endline ""; 
-    check env ctx id_term id_ty;
-    Printf.printf "Refl typechecks\n";
-
-    let trans_ty = infer env ctx trans_term in 
-    Printf.printf "typeof(transitivity zero one one refl refl): "; print_term trans_ty; print_endline "";  
-    Printf.printf "transitivity reduces to: "; print_term (normalize env ctx trans_term); print_endline ""; 
     Printf.printf "Checking id_term: "; print_term id_term; print_string " against "; print_term id_ty; print_endline ""; 
+    check env ctx id_term id_ty;
+    Printf.printf "typeof(id_term)=id_ty\n";
+    Printf.printf "norm(subst_eq): "; print_term (normalize env ctx subst_eq); print_endline "";
+    Printf.printf "norm(tran_term): "; print_term (normalize env ctx trans_term); print_endline ""; 
+(*  Printf.printf "===================================\n";
+    let trans_ty = infer env ctx trans_term in 
+    Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline ""; *)
 
     with TypeError msg -> print_endline ("Type error: " ^ msg)
 

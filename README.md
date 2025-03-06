@@ -127,14 +127,21 @@ aligning with CIC’s eliminator semantics.
 If `Γ ⊢ t : T` and `Γ ⊢ s : A`, then `Γ ⊢ t[x := s] : T[x := s]`
 under suitable conditions on x.
 
-### Type Inference `infer env ctx t`
+### Inductive Instantiation `apply_inductive d args`
 
-Infer the type of term `t` in context `ctx` and environment `env`.
+Instantiate an inductive type’s constructors with parameters, used only in `infer_Elim`.
 
-For `Pi` and `Lam`, universe levels ensure consistency
-(e.g., `Type i : Type (i + 1)`), while `Elim` handles induction,
-critical for dependent elimination. Note that lambda agrument should be typed
-for easier type synthesis [13].
+This function ensures type-level parametricity, critical for
+polymorphic inductives like List A. The fold-based substitution
+avoids explicit recursion, leveraging OCaml’s functional style,
+but assumes args are well-typed, deferring validation to infer.
+
+* Validates argument count against d.params.
+* Substitutes each parameter into constructor types using subst_param.
+
+**Theorem**: Parameter application preserves inductiveness (cf. [4], Section 4).
+If `D` is an inductive type with parameters `P`, then `D[P]` is
+well-formed with substituted constructors.
 
 ### Infer Contstructor `infer_ctor env ctx ty args`
 
@@ -176,23 +183,16 @@ with constructors `c_j`, if `ctx ⊢ t : D` and `ctx ⊢ P : D → Type_i`,
 and each case case_j has type `Πx:A_j.P(c_j x)` where `A_j` are
 the argument types of `c_j` (including recursive hypotheses), then `ctx ⊢ Elim(D, P, cases, t) : P t`.
 
-### Inductive Instantiation `apply_inductive d args`
-
-Instantiate an inductive type’s constructors with parameters, used only in `infer_Elim`.
-
-This function ensures type-level parametricity, critical for
-polymorphic inductives like List A. The fold-based substitution
-avoids explicit recursion, leveraging OCaml’s functional style,
-but assumes args are well-typed, deferring validation to infer.
-
-* Validates argument count against d.params.
-* Substitutes each parameter into constructor types using subst_param.
-
-**Theorem**: Parameter application preserves inductiveness (cf. [4], Section 4).
-If `D` is an inductive type with parameters `P`, then `D[P]` is
-well-formed with substituted constructors.
-
 ### Infer Equality Induction `infer_J env ctx ty a b c d p`
+
+### Type Inference `infer env ctx t`
+
+Infer the type of term `t` in context `ctx` and environment `env`.
+
+For `Pi` and `Lam`, universe levels ensure consistency
+(e.g., `Type i : Type (i + 1)`), while `Elim` handles induction,
+critical for dependent elimination. Note that lambda agrument should be typed
+for easier type synthesis [13].
 
 ### Check Universes `check_universe env ctx t`
 

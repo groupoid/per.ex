@@ -155,48 +155,6 @@ non-universe types, aligning with ITT’s stratification.
 **Theorem**: Universe checking is decidable (cf. [12]).
 If `ctx ⊢ t : Universe i`, then `check_universe env ctx t = i`.
 
-### Check Contstructor `check_constructor_args env ctx ty args`
-
-Validate constructor arguments against its type.
-
-This function implements the dependent application rule for constructors,
-ensuring each argument satisfies the constructor’s domain type in sequence.
-The recursive descent mirrors the structure of Π-types, where ty is peeled
-layer by layer, and subst x arg b updates the type for the next argument.
-The accumulator (args_acc) is a design choice for potential reversal,
-though unused here, reflecting a forward-thinking approach to argument
-order preservation. The absence of explicit universe level checks
-assumes ty is well-formed from the inductive definition, delegating
-such verification to infer or check_elim. Complexity is O(n) in the
-number of arguments, with substitution dominating for large terms.
-
-* Recursively matches `ty` (a Pi chain) with `args`, checking each argument and substituting.
-* Returns the final type when all arguments are consumed.
-
-**Theorem**. Constructor typing is preserved (cf. [1], Section 4, Application Rule; [8], Section 4.3).
-If `ctx ⊢ c : Πx:A.B` and `ctx ⊢ a : A`, then `ctx ⊢ c a : B[x := a]`.
-
-### Check Equality Induction `check_J env ctx ty a b c d p`
-
-### Check General Induction `check_elim env ctx d p cases t'`
-
-Type-check an elimination (induction) over inductive type `d`.
-
-This function implements the dependent elimination rule of CIC,
-generalizing both computation (e.g., plus : `Nat → Nat → Nat`)
-and proof (e.g., `nat_elim : Πx:Nat.Type0`). The check `equal env ctx t_ty a`
-ensures the motive’s domain aligns with the target, while `compute_case_type`
-constructs the induction principle by injecting `App (p, var)`
-as the hypothesis type for recursive occurrences, mirroring the
-fixpoint-style eliminators of CIC [8]. The flexibility in result_ty
-avoids hardcoding it to D, supporting higher-type motives (e.g., Type0). The O(n·m) complexity (where n is the term size and m the number of cases) arises from substitution and equality checks, with debugging prints providing a window into the type checker’s reasoning, critical for dependent type systems where errors cascade.
-
-**Theorem**. Elimination preserves typing (cf. [8], Section 4.5; [1],
-Elimination Rule for Inductive Types). For an inductive type `D`
-with constructors `c_j`, if `ctx ⊢ t : D` and `ctx ⊢ P : D → Type_i`,
-and each case case_j has type `Πx:A_j.P(c_j x)` where `A_j` are
-the argument types of `c_j` (including recursive hypotheses), then `ctx ⊢ Elim(D, P, cases, t) : P t`.
-
 ### Check `check env ctx t ty`
 
 Check that `t` has type `ty`.
@@ -217,6 +175,48 @@ dependent types where errors are subtle.
 **Theorem**. Type checking is complete (cf. [1], Section III, Normalization; [8], Section 4.7).
 If `ctx ⊢ t : T` in the type theory, then `check env ctx t T` succeeds,
 assuming normalization and sound inference.
+
+### Infer Contstructor `infer_ctor env ctx ty args`
+
+Validate constructor arguments against its type.
+
+This function implements the dependent application rule for constructors,
+ensuring each argument satisfies the constructor’s domain type in sequence.
+The recursive descent mirrors the structure of Π-types, where ty is peeled
+layer by layer, and subst x arg b updates the type for the next argument.
+The accumulator (args_acc) is a design choice for potential reversal,
+though unused here, reflecting a forward-thinking approach to argument
+order preservation. The absence of explicit universe level checks
+assumes ty is well-formed from the inductive definition, delegating
+such verification to infer or check_elim. Complexity is O(n) in the
+number of arguments, with substitution dominating for large terms.
+
+* Recursively matches `ty` (a Pi chain) with `args`, checking each argument and substituting.
+* Returns the final type when all arguments are consumed.
+
+**Theorem**. Constructor typing is preserved (cf. [1], Section 4, Application Rule; [8], Section 4.3).
+If `ctx ⊢ c : Πx:A.B` and `ctx ⊢ a : A`, then `ctx ⊢ c a : B[x := a]`.
+
+### Infer General Induction `infer_elim env ctx d p cases t'`
+
+Type-check an elimination (induction) over inductive type `d`.
+
+This function implements the dependent elimination rule of CIC,
+generalizing both computation (e.g., plus : `Nat → Nat → Nat`)
+and proof (e.g., `nat_elim : Πx:Nat.Type0`). The check `equal env ctx t_ty a`
+ensures the motive’s domain aligns with the target, while `compute_case_type`
+constructs the induction principle by injecting `App (p, var)`
+as the hypothesis type for recursive occurrences, mirroring the
+fixpoint-style eliminators of CIC [8]. The flexibility in result_ty
+avoids hardcoding it to D, supporting higher-type motives (e.g., Type0). The O(n·m) complexity (where n is the term size and m the number of cases) arises from substitution and equality checks, with debugging prints providing a window into the type checker’s reasoning, critical for dependent type systems where errors cascade.
+
+**Theorem**. Elimination preserves typing (cf. [8], Section 4.5; [1],
+Elimination Rule for Inductive Types). For an inductive type `D`
+with constructors `c_j`, if `ctx ⊢ t : D` and `ctx ⊢ P : D → Type_i`,
+and each case case_j has type `Πx:A_j.P(c_j x)` where `A_j` are
+the argument types of `c_j` (including recursive hypotheses), then `ctx ⊢ Elim(D, P, cases, t) : P t`.
+
+### Infer Equality Induction `infer_J env ctx ty a b c d p`
 
 ### Type Inference `infer env ctx t`
 

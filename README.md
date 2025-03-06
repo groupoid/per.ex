@@ -92,6 +92,7 @@ ensuring capture-avoiding substitution preserves meaning.
 ### Context Variables Lookup `lookup_var ctx x`
 
 Retrieve a variable’s type from the context.
+Context are the objects in the categories of Substitutions.
 
 This linear search assumes a small context, which is inefficient
 for large ctx (O(n) complexity). A hash table (Second Lesson `per2.ml` of Tutorial)

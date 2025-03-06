@@ -122,9 +122,8 @@ and check_elim env ctx d p cases t' =
     let d_applied = apply_inductive d (List.map snd d.params) in
     if not (equal env ctx t_ty d_applied) then raise (TypeError "Elimination target type mismatch");
     let (x, a, b) = match p with
-      | Pi (x, a, b) -> (x, a, b)
-      | _ -> raise (TypeError ("Motive must be a Pi type, got: " ^ (let s = ref "" in print_term_depth 0 p; !s)))
-    in
+    | Pi (x, a, b) -> (x, a, b)
+    | _ -> raise (TypeError ("Motive must be a Pi type, got: " ^ (let s = ref "" in print_term_depth 0 p; !s))) in
     let p_ty = infer env ctx p in (match p_ty with | Universe _ -> () | _ -> raise (TypeError "Motive must be a type (Universe)"));
     if not (equal env ctx t_ty a) then raise (TypeError "Target type does not match motive domain");
     let result_ty = subst x t' b in
@@ -161,22 +160,17 @@ and check env ctx t ty =
         check env ctx domain (infer env ctx domain);
         check env (add_var ctx x domain) body b
     | Constr (j, d, args), Inductive d' when d.name = d'.name ->
-        let inferred = infer env ctx t in
-        if not (equal env ctx inferred ty) then
-          raise (TypeError "Constructor type mismatch")
+        let inferred = infer env ctx t in if not (equal env ctx inferred ty) then raise (TypeError "Constructor type mismatch")
     | Elim (d, p, cases, t'), ty ->
         let inferred = check_elim env ctx d p cases t' in
-        if not (equal env ctx inferred ty) then
-          raise (TypeError "Elimination type mismatch")
+        if not (equal env ctx inferred ty) then raise (TypeError "Elimination type mismatch")
     | _, _ ->
         let inferred = infer env ctx t in
         let ty' = normalize env ctx ty in
         (if (trace) then (Printf.printf "Inferred: "; print_term inferred; print_string ", Expected: "; print_term ty'; print_endline ""));
         match inferred, ty' with
         | Universe i, Universe j when i >= j -> () (* cumulativity *)
-        | _ ->
-            if not (equal env ctx inferred ty') then
-              raise (TypeError "Type mismatch")
+        | _ -> if not (equal env ctx inferred ty') then raise (TypeError "Type mismatch")
 
 and reduce env ctx t =
     if (trace) then (Printf.printf "Reducing: "; print_term t; print_endline "");
@@ -221,9 +215,8 @@ and apply_case env ctx d p cases case ty args =
 
 and normalize env ctx t =
     let t' = reduce env ctx t in
-    if (trace) then (Printf.printf "Reduced to: "; print_term t'; print_endline "");
-    if equal env ctx t t' then t
-    else normalize env ctx t'
+    if (trace) then (Printf.printf "One-step β-reductor: "; print_term t'; print_endline "");
+    if equal env ctx t t' then t else normalize env ctx t'
 
 and print_term_depth depth t =
     if depth > 10 then print_string "<deep>"

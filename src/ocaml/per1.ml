@@ -70,68 +70,55 @@ and apply_inductive d args =
   Inductive { d with constrs = List.map (fun (j, ty) -> (j, subst_param ty)) d.constrs }
 
 and infer env ctx t =
-  if (trace) then (Printf.printf "Inferring: "; print_term t; Printf.printf " with ctx: ";
-                   List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
-                   print_endline "");
-  match t with
-  | Var x ->
-      (match lookup_var ctx x with
-       | Some ty -> ty
-       | None -> raise (TypeError ("Unbound variable: " ^ x)))
-  | Universe i -> Universe (i + 1)
-  | Pi (x, a, b) ->
+    match t with
+    | Var x -> (match lookup_var ctx x with | Some ty -> ty | None -> raise (TypeError ("Unbound variable: " ^ x)))
+    | Universe i -> Universe (i + 1)
+    | Pi (x, a, b) ->
       let i = check_universe env ctx a in
       let ctx' = add_var ctx x a in
       let j = check_universe env ctx' b in
-      Universe (max i j)
-  | Lam (x, domain, body) ->
+      let result = Universe (max i j) in
+      (if (trace) then (Printf.printf "Inferring Pi %s\n" x;
+                       Printf.printf "Domain level: %d\n" i;
+                       Printf.printf "Codomain level: %d\n" j;
+                       Printf.printf "Pi type: "; print_term result; print_endline "");
+      result)
+    | Lam (x, domain, body) ->
       check env ctx domain (infer env ctx domain);
       let ctx' = add_var ctx x domain in
-      let body_ty = infer env ctx' body in
-      Pi (x, domain, body_ty)
-  | App (f, arg) ->
-      let f_ty = infer env ctx f in
-      (match f_ty with
-       | Pi (x, a, b) ->
-           check env ctx arg a;
-           subst x arg b
-       | _ -> raise (TypeError "Application requires a Pi type"))
-  | Inductive d ->
-      let param_tys = List.map (fun (_, ty) -> infer env ctx ty) d.params in
-      List.iter (fun ty -> 
-        match ty with 
-        | Universe _ -> () 
-        | _ -> raise (TypeError "Inductive parameters must be types")
-      ) param_tys;
+        let body_ty = infer env ctx' body in
+      let result = Pi (x, domain, body_ty) in
+      (if (trace) then (Printf.printf "Inferring Lam %s: domain = " x; print_term domain; print_endline "";
+                        Printf.printf "Inferred body type: "; print_term body_ty; print_endline "";
+                        Printf.printf "Returning Pi type: "; print_term pi_ty; print_endline "");
+      result)
+    | App (f, arg) ->
+      (match infer env ctx f with
+        | Pi (x, a, b) -> check env ctx arg a; subst x arg b
+        | ty -> Printf.printf "App failed: inferred "; print_term ty; print_endline ""; raise (TypeError "Application requires a Pi type"))
+    | Inductive d ->
+      List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params;
       Universe d.level
-  | Constr (j, d, args) ->
-      (try
-         let cj = List.assoc j d.constrs in
-         let cj_subst = List.fold_left2 
-           (fun acc (n, _) arg -> subst n arg acc) 
-           cj d.params (List.map snd d.params) in
-         check_constructor_args env ctx cj_subst args
-       with Not_found -> raise (TypeError ("Invalid constructor index: " ^ string_of_int j)))
-  | Elim (d, p, cases, t') ->
-      check_elim env ctx d p cases t'
-  | _ -> Universe 0
+    | Constr (j, d, args) ->
+        let cj = List.assoc j d.constrs in
+        let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in
+        check_constructor_args env ctx cj_subst args
+    | Elim (d, p, cases, t') -> check_elim env ctx d p cases t'
+    | _ -> Universe 0
 
 and check_universe env ctx t =
-  match infer env ctx t with
-  | Universe i -> i
-  | _ -> raise (TypeError "Expected a universe")
+    match infer env ctx t with
+    | Universe i -> i
+    | _ -> raise (TypeError "Expected a universe")
 
 and check_constructor_args env ctx ty args =
-  let rec check_args ty args_acc = function
+    let rec check_args ty args_acc = function
     | [] -> ty
     | arg :: rest ->
         (match ty with
-         | Pi (x, a, b) ->
-             check env ctx arg a;
-             check_args (subst x arg b) (arg :: args_acc) rest
+         | Pi (x, a, b) -> check env ctx arg a; check_args (subst x arg b) (arg :: args_acc) rest
          | _ -> raise (TypeError "Too many arguments to constructor"))
-  in
-  check_args ty [] args
+    in check_args ty [] args
 
 and check_elim env ctx d p cases t' =
   let t_ty = infer env ctx t' in

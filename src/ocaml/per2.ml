@@ -164,7 +164,7 @@ let rec infer env ctx t =
             let ctx' = add_var ctx x a in
             let j = check_universe env ctx' b in
             if (trace) then Printf.printf "Codomain level: %d\n" j;
-            let result = Universe (max i j + 1) in  (* CIC rule *)
+            let result = Universe (max i j) in  (* CIC rule *)
             if (trace) then (Printf.printf "Pi type: "; print_term result; print_endline "");
             result
         | Lam (x, domain, body) ->

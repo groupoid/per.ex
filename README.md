@@ -55,22 +55,14 @@ while mutual_group hints at potential mutual recursion, though not fully exploit
 ## Syntax
 
 ```OCaml
-
 type term =
-  | Var of string
-  | Universe of int
-  | Pi of string * term * term
-  | Lam of string * term * term
-  | App of term * term
-  | Sigma of string * term * term
-  | Pair of term * term
-  | Fst of term
-  | Snd of term
-  | Id of term * term * term
-  | Refl of term
-  | Inductive of inductive  (* Inductive type D *)
-  | Constr of int * inductive * term list  (* j-th constructor of D *)
-  | Elim of inductive * term * term list * term  (* Elim D P cases t *)
+  | Var of name | Universe of level
+  | Pi of name * term * term | Lam of name * term * term | App of term * term
+  | Sigma of name * term * term | Pair of term * term | Fst of term | Snd of term
+  | Id of term * term * term | Refl of term
+  | J of term * term * term * term * term * term  (* J A a b C d p *)
+  | Inductive of inductive | Constr of int * inductive * term list
+  | Elim of inductive * term * term list * term
 ```
 
 ## Semantics

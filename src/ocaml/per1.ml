@@ -29,6 +29,21 @@ let empty_env : env = []
 let empty_ctx : context = []
 let add_var ctx x ty = (x, ty) :: ctx
 
+type subst_map = (name * term) list
+
+let rec subst_many m t =
+  match t with
+  | Var x -> (try List.assoc x m with Not_found -> t)
+  | Pi (x, a, b) -> let m' = List.filter (fun (y, _) -> y <> x) m in Pi (x, subst_many m a, subst_many m' b)
+  | Lam (x, d, b) -> let m' = List.filter (fun (y, _) -> y <> x) m in Lam (x, subst_many m d, subst_many m' b)
+  | App (f, arg) -> App (subst_many m f, subst_many m arg)
+  | Inductive d -> Inductive d
+  | Constr (j, d, args) -> Constr (j, d, List.map (subst_many m) args)
+  | Elim (d, p, cases, t') -> Elim (d, subst_many m p, List.map (subst_many m) cases, subst_many m t')
+  | _ -> t
+
+let subst x s t = subst_many [(x, s)] t
+
 let rec equal env ctx t1 t2 =
   match t1, t2 with
   | App (f, arg), App (f', arg') -> equal env ctx f f' && equal env ctx arg arg'
@@ -45,17 +60,6 @@ and lookup_var ctx x =
                    List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
                    print_endline "]");
   try Some (List.assoc x ctx) with Not_found -> None
-
-and subst x s t =
-  match t with
-  | Var y -> if x = y then s else t
-  | Pi (y, a, b) -> if x = y then Pi (y, subst x s a, b) else Pi (y, subst x s a, subst x s b)
-  | Lam (y, domain, body) -> if x = y then Lam (y, subst x s domain, body) else Lam (y, subst x s domain, subst x s body)
-  | App (f, arg) -> App (subst x s f, subst x s arg)
-  | Inductive d -> Inductive d
-  | Constr (j, d, args) -> Constr (j, d, List.map (subst x s) args)
-  | Elim (d, p, cases, t') -> Elim (d, subst x s p, List.map (subst x s) cases, subst x s t')
-  | _ -> t
 
 and apply_inductive d args =
   if List.length d.params <> List.length args then 
@@ -131,84 +135,71 @@ and check_constructor_args env ctx ty args =
 
 and check_elim env ctx d p cases t' =
   if (trace) then (Printf.printf "Checking elim for %s with ctx: " d.name;
-                  List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
-                  print_endline "");
+                   List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
+                   print_endline "");
   let t_ty = infer env ctx t' in
   let d_applied = apply_inductive d (List.map snd d.params) in
   if (trace) then (Printf.printf "Target type: "; print_term t_ty; print_endline "");
-  if not (equal env ctx (normalize env ctx t_ty) (normalize env ctx d_applied)) then 
-    raise (TypeError "Elimination target type mismatch");
-  
-  (* Check that p is a Pi type structurally and has the correct universe level *)
-  let (x, a, b) = match normalize env ctx p with
+  if not (equal env ctx t_ty d_applied) then raise (TypeError "Elimination target type mismatch");
+  (* Check that p is a Pi type structurally *)
+  let (x, a, b) = match p with
     | Pi (x, a, b) -> (x, a, b)
     | _ -> raise (TypeError ("Motive must be a Pi type, got: " ^ (let s = ref "" in print_term_depth 0 p; !s)))
   in
   if (trace) then (Printf.printf "Motive domain: "; print_term a; print_endline "");
   if (trace) then (Printf.printf "Motive codomain: "; print_term b; print_endline "");
-  
   (* Verify the motive's type *)
   let p_ty = infer env ctx p in
   if (trace) then (Printf.printf "Motive type inferred: "; print_term p_ty; print_endline "");
-  (match normalize env ctx p_ty with
-   | Universe k when k >= d.level -> ()  (* Motive should be in a universe at least d.level + 1 *)
-   | _ -> raise (TypeError ("Motive must be a type at universe level >= " ^ string_of_int (d.level + 1))));
-  
+  (match p_ty with
+   | Universe _ -> ()  (* Motive should be a type *)
+   | _ -> raise (TypeError "Motive must be a type (Universe)"));
   (* Check that the target's type matches the motive's domain *)
-  if not (equal env ctx (normalize env ctx t_ty) (normalize env ctx a)) then 
-    raise (TypeError "Target type does not match motive domain");
-  
-  let result_ty = normalize env ctx (subst x t' b) in
+  if not (equal env ctx t_ty a) then raise (TypeError "Target type does not match motive domain");
+  let result_ty = subst x t' b in
   if (trace) then (Printf.printf "Result type: "; print_term result_ty; print_endline "");
-  
-  if List.length cases <> List.length d.constrs then 
-    raise (TypeError "Number of cases doesn't match constructors");
-  
+  if List.length cases <> List.length d.constrs then raise (TypeError "Number of cases doesn't match constructors");
   List.iteri (fun j case ->
     let j_idx = j + 1 in
     let cj = List.assoc j_idx d.constrs in
     let cj_subst = List.fold_left2 (fun acc (n, _) arg -> subst n arg acc) cj d.params (List.map snd d.params) in
     let rec compute_case_type ty ctx_acc =
-      match normalize env ctx_acc ty with
+      match ty with
       | Pi (x, a, b) ->
-          let var = Var x in 
-          let ctx' = add_var ctx_acc x a in 
-          let b_ty = compute_case_type b ctx' in
-          if equal env ctx (normalize env ctx a) (normalize env ctx d_applied) 
-          then Pi (x, a, Pi ("ih", normalize env ctx (App (p, var)), b_ty)) 
-          else Pi (x, a, b_ty)
-      | Inductive d' when d'.name = d.name ->
-          normalize env ctx (subst x (Constr (j_idx, d, [])) b)  (* Apply motive to constructor *)
+          let var = Var x in let ctx' = add_var ctx_acc x a in let b_ty = compute_case_type b ctx' in
+          if equal env ctx a d_applied then Pi (x, a, Pi ("ih", App (p, var), b_ty)) else Pi (x, a, b_ty)
+      | Inductive d' when d'.name = d.name -> b (* Return type is the motive's codomain *)
       | _ -> raise (TypeError "Invalid constructor return type")
     in
     let expected_ty = compute_case_type cj_subst ctx in
-    if (trace) then (Printf.printf "Checking case %d: " j; print_term case; 
-                     Printf.printf " against: "; print_term expected_ty; print_endline "");
+    if (trace) then (Printf.printf "Checking case %d: " j; print_term case; Printf.printf " against: "; print_term expected_ty; print_endline "");
     check env ctx case expected_ty;
     if (trace) then Printf.printf "Case %d checked\n" j
   ) cases;
-  result_ty
-
+  result_ty  (* Return the type of the elimination *)
 and check env ctx t ty =
+  if (trace) then (Printf.printf "Checking: "; print_term t; print_string " against "; print_term ty; print_endline "");
   match t, ty with
   | Lam (x, domain, body), Pi (y, a, b) ->
-      check env ctx domain (infer env ctx domain);  (* Check domain is a type *)
-      let ctx' = add_var ctx x domain in check env ctx' body b
+      check env ctx domain (infer env ctx domain);
+      check env (add_var ctx x domain) body b
   | Constr (j, d, args), Inductive d' when d.name = d'.name ->
       let inferred = infer env ctx t in
-      if not (equal env ctx inferred ty) then raise (TypeError "Constructor type mismatch")
+      if not (equal env ctx inferred ty) then
+        raise (TypeError "Constructor type mismatch")
   | Elim (d, p, cases, t'), ty ->
       let inferred = check_elim env ctx d p cases t' in
-      if not (equal env ctx inferred ty) then raise (TypeError "Elimination type mismatch")
+      if not (equal env ctx inferred ty) then
+        raise (TypeError "Elimination type mismatch")
   | _, _ ->
       let inferred = infer env ctx t in
       let ty' = normalize env ctx ty in
-      (  if (trace) then (Printf.printf "Checking term: "; print_term t; print_endline "";
-                          Printf.printf "Inferred: "; print_term inferred; print_endline "";
-                          Printf.printf "Expected: "; print_term ty'; print_endline "");
-
-         if not (equal env ctx inferred ty') then raise (TypeError "Type mismatch")
-      )
+      (if (trace) then (Printf.printf "Inferred: "; print_term inferred; print_string ", Expected: "; print_term ty'; print_endline ""));
+      match inferred, ty' with
+      | Universe i, Universe j when i >= j -> () (* cumulativity *)
+      | _ ->
+          if not (equal env ctx inferred ty') then
+            raise (TypeError "Type mismatch")
 
 and reduce env ctx t =
   if (trace) then (Printf.printf "Reducing: "; print_term t; print_endline "");

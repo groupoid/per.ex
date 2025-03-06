@@ -1,4 +1,4 @@
-let trace: bool ref = ref false
+let trace: bool = false
 
 type level = int
 type name = string
@@ -60,9 +60,9 @@ let rec equal env ctx t1 t2 =
   | _ -> false
 
 and lookup_var ctx x =
-  Printf.printf "Looking up %s in context: [" x;
-  List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
-  print_endline "]";
+  if (trace) then (Printf.printf "Looking up %s in context: [" x;
+                   List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
+                   print_endline "]");
   try Some (List.assoc x ctx) with Not_found -> None
 
 (* Substitution *)
@@ -93,11 +93,9 @@ and apply_inductive d args =
 
 (* Type inference *)
 and infer env ctx t =
-  Printf.printf "Inferring: ";
-  print_term t;
-  Printf.printf " with ctx: ";
-  List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
-  print_endline "";
+  if (trace) then (Printf.printf "Inferring: "; print_term t; Printf.printf " with ctx: ";
+                   List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
+                   print_endline "");
   match t with
   | Var x ->
       (match lookup_var ctx x with
@@ -161,12 +159,12 @@ and check_constructor_args env ctx ty args =
 
 (* Check elimination rule *)
 and check_elim env ctx d p cases t' =
-  Printf.printf "Checking elim for %s with ctx: " d.name;
-  List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
-  print_endline "";
+  if (trace) then (Printf.printf "Checking elim for %s with ctx: " d.name;
+                   List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
+                   print_endline "");
   let t_ty = infer env ctx t' in
   let d_applied = apply_inductive d (List.map snd d.params) in
-  Printf.printf "Target type: "; print_term t_ty; print_endline "";
+  if (trace) then (Printf.printf "Target type: "; print_term t_ty; print_endline "");
   if not (equal env ctx t_ty d_applied) then
     raise (TypeError "Elimination target type mismatch");
   (* Check that p is a Pi type structurally *)
@@ -174,11 +172,11 @@ and check_elim env ctx d p cases t' =
     | Pi (x, a, b) -> (x, a, b)
     | _ -> raise (TypeError ("Motive must be a Pi type, got: " ^ (let s = ref "" in print_term_depth 0 p; !s)))
   in
-  Printf.printf "Motive domain: "; print_term a; print_endline "";
-  Printf.printf "Motive codomain: "; print_term b; print_endline "";
+  if (trace) then (Printf.printf "Motive domain: "; print_term a; print_endline "");
+  if (trace) then (Printf.printf "Motive codomain: "; print_term b; print_endline "");
   (* Verify the motive's type *)
   let p_ty = infer env ctx p in
-  Printf.printf "Motive type inferred: "; print_term p_ty; print_endline "";
+  if (trace) then (Printf.printf "Motive type inferred: "; print_term p_ty; print_endline "");
   (match p_ty with
    | Universe _ -> ()  (* Motive should be a type *)
    | _ -> raise (TypeError "Motive must be a type (Universe)"));
@@ -186,7 +184,7 @@ and check_elim env ctx d p cases t' =
   if not (equal env ctx t_ty a) then
     raise (TypeError "Target type does not match motive domain");
   let result_ty = subst x t' b in
-  Printf.printf "Result type: "; print_term result_ty; print_endline "";
+  if (trace) then (Printf.printf "Result type: "; print_term result_ty; print_endline "");
   if List.length cases <> List.length d.constrs then
     raise (TypeError "Number of cases doesn't match constructors");
   List.iteri (fun j case ->
@@ -210,9 +208,9 @@ and check_elim env ctx d p cases t' =
       | _ -> raise (TypeError "Invalid constructor return type")
     in
     let expected_ty = compute_case_type cj_subst ctx in
-    Printf.printf "Checking case %d: " j; print_term case; Printf.printf " against: "; print_term expected_ty; print_endline "";
+    if (trace) then (Printf.printf "Checking case %d: " j; print_term case; Printf.printf " against: "; print_term expected_ty; print_endline "");
     check env ctx case expected_ty;
-    Printf.printf "Case %d checked\n" j
+    if (trace) then Printf.printf "Case %d checked\n" j
   ) cases;
   result_ty  (* Return the type of the elimination *)
 
@@ -235,26 +233,24 @@ and check env ctx t ty =
       let inferred = infer env ctx t in
       let ty' = normalize env ctx ty in
       if not (equal env ctx inferred ty') then (
-        Printf.printf "Checking term: "; print_term t; print_endline "";
-        Printf.printf "Inferred: "; print_term inferred; print_endline "";
-        Printf.printf "Expected: "; print_term ty'; print_endline "";
+        if (trace) then (Printf.printf "Checking term: "; print_term t; print_endline "";
+                        Printf.printf "Inferred: "; print_term inferred; print_endline "";
+                        Printf.printf "Expected: "; print_term ty'; print_endline "");
         raise (TypeError "Type mismatch")
       )
 
 (* Reduction function: one-step reduction *)
 and reduce env ctx t =
-  Printf.printf "Reducing: ";
-  print_term t;
-  print_endline "";
+  if (trace) then (Printf.printf "Reducing: "; print_term t; print_endline "");
   match t with
   | App (Lam (x, domain, body), arg) ->
-      Printf.printf "Beta reducing: %s with " x; print_term arg; print_endline "";
+      if (trace) then (Printf.printf "Beta reducing: %s with " x; print_term arg; print_endline "");
       subst x arg body
   | App (Pi (x, a, b), arg) ->  (* New case for Pi application *)
-      Printf.printf "Reducing Pi application: "; print_term (Pi (x, a, b)); print_string " with "; print_term arg; print_endline "";
+      if (trace) then (Printf.printf "Reducing Pi application: "; print_term (Pi (x, a, b)); print_string " with "; print_term arg; print_endline "");
       subst x arg b
   | App (f, arg) ->
-      Printf.printf "Reducing function part: "; print_term f; print_endline "";
+      if (trace) then (Printf.printf "Reducing function part: "; print_term f; print_endline "");
       let f' = reduce env ctx f in
       if equal env ctx f f' then
         let arg' = reduce env ctx arg in
@@ -278,13 +274,9 @@ and reduce env ctx t =
 
 (* Fixed apply_case *)
 and apply_case env ctx d p cases case ty args =
-  Printf.printf "Applying case: ";
-  print_term case;
-  Printf.printf " to type: ";
-  print_term ty;
-  Printf.printf " with args: [";
-  List.iter (fun arg -> print_term arg; print_string "; ") args;
-  print_endline "]";
+  if (trace) then (Printf.printf "Applying case: "; print_term case; Printf.printf " to type: "; print_term ty; Printf.printf " with args: [";
+                   List.iter (fun arg -> print_term arg; print_string "; ") args;
+                   print_endline "]");
   let rec apply ty args_acc remaining_args =
     match ty, remaining_args with
     | Pi (x, a, b), arg :: rest ->
@@ -294,9 +286,7 @@ and apply_case env ctx d p cases case ty args =
             match arg with
             | Constr (j, d', sub_args) when d.name = d'.name ->
                 let reduced = reduce env ctx (Elim (d, p, cases, arg)) in
-                Printf.printf "Recursive arg for %s: " x;
-                print_term reduced;
-                print_endline "";
+                if (trace) then (Printf.printf "Recursive arg for %s: " x; print_term reduced; print_endline "");
                 Some reduced
             | _ -> None
           else None
@@ -322,9 +312,7 @@ and apply_case env ctx d p cases case ty args =
 (* Normalization *)
 and normalize env ctx t =
   let t' = reduce env ctx t in
-  Printf.printf "Reduced to: ";
-  print_term t';
-  print_endline "";
+  if (trace) then (Printf.printf "Reduced to: "; print_term t'; print_endline "");
   if equal env ctx t t' then t
   else normalize env ctx t'
 
@@ -440,16 +428,12 @@ let test () =
   let two = Constr (2, nat_def, [one]) in
   let add_term = App (App (plus, two), two) in
   let add_normal = normalize env empty_ctx add_term in
-  Printf.printf "Nat.add: ";
-  print_term add_normal;
-  print_endline "";
+  Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
 
   (* Test list length *)
   let list_term = App (list_length, sample_list) in
   let list_normal = normalize env empty_ctx list_term in
-  Printf.printf "List.length: ";
-  print_term list_normal;
-  print_endline "";
+  Printf.printf "List.length: "; print_term list_normal; print_endline "";
 
   try
     let succ_ty = infer env ctx succ in

@@ -134,30 +134,22 @@ and check_constructor_args env ctx ty args =
   check_args ty [] args
 
 and check_elim env ctx d p cases t' =
-  if (trace) then (Printf.printf "Checking elim for %s with ctx: " d.name;
-                   List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
-                   print_endline "");
   let t_ty = infer env ctx t' in
   let d_applied = apply_inductive d (List.map snd d.params) in
-  if (trace) then (Printf.printf "Target type: "; print_term t_ty; print_endline "");
   if not (equal env ctx t_ty d_applied) then raise (TypeError "Elimination target type mismatch");
-  (* Check that p is a Pi type structurally *)
   let (x, a, b) = match p with
     | Pi (x, a, b) -> (x, a, b)
     | _ -> raise (TypeError ("Motive must be a Pi type, got: " ^ (let s = ref "" in print_term_depth 0 p; !s)))
   in
-  if (trace) then (Printf.printf "Motive domain: "; print_term a; print_endline "");
-  if (trace) then (Printf.printf "Motive codomain: "; print_term b; print_endline "");
-  (* Verify the motive's type *)
-  let p_ty = infer env ctx p in
-  if (trace) then (Printf.printf "Motive type inferred: "; print_term p_ty; print_endline "");
-  (match p_ty with
-   | Universe _ -> ()  (* Motive should be a type *)
-   | _ -> raise (TypeError "Motive must be a type (Universe)"));
-  (* Check that the target's type matches the motive's domain *)
+  let p_ty = infer env ctx p in (match p_ty with | Universe _ -> () | _ -> raise (TypeError "Motive must be a type (Universe)"));
   if not (equal env ctx t_ty a) then raise (TypeError "Target type does not match motive domain");
   let result_ty = subst x t' b in
-  if (trace) then (Printf.printf "Result type: "; print_term result_ty; print_endline "");
+  if (trace) then (Printf.printf "Checking elim for %s\n" d.name;
+                   Printf.printf "Target type: "; print_term t_ty; print_endline "";
+                   Printf.printf "Motive domain: "; print_term a; print_endline "";
+                   Printf.printf "Motive codomain: "; print_term b; print_endline "";
+                   Printf.printf "Motive type inferred: "; print_term p_ty; print_endline "";
+                   Printf.printf "Result type: "; print_term result_ty; print_endline "");
   if List.length cases <> List.length d.constrs then raise (TypeError "Number of cases doesn't match constructors");
   List.iteri (fun j case ->
     let j_idx = j + 1 in
@@ -168,7 +160,7 @@ and check_elim env ctx d p cases t' =
       | Pi (x, a, b) ->
           let var = Var x in let ctx' = add_var ctx_acc x a in let b_ty = compute_case_type b ctx' in
           if equal env ctx a d_applied then Pi (x, a, Pi ("ih", App (p, var), b_ty)) else Pi (x, a, b_ty)
-      | Inductive d' when d'.name = d.name -> b (* Return type is the motive's codomain *)
+      | Inductive d' when d'.name = d.name -> b
       | _ -> raise (TypeError "Invalid constructor return type")
     in
     let expected_ty = compute_case_type cj_subst ctx in
@@ -176,7 +168,8 @@ and check_elim env ctx d p cases t' =
     check env ctx case expected_ty;
     if (trace) then Printf.printf "Case %d checked\n" j
   ) cases;
-  result_ty  (* Return the type of the elimination *)
+  result_ty
+
 and check env ctx t ty =
   if (trace) then (Printf.printf "Checking: "; print_term t; print_string " against "; print_term ty; print_endline "");
   match t, ty with

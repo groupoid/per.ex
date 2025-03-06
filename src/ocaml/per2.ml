@@ -215,54 +215,40 @@ and check_constructor_args env ctx ty args =
   in check_args ty [] args
 
 and check_elim env ctx d p cases t' =
-  if (trace) then (Printf.printf "Checking Elim for %s\n" d.name);
   let t_ty = infer env ctx t' in
-  if (trace) then (Printf.printf "Target type: "; print_term t_ty; print_endline "");
   let d_applied = apply_inductive d (List.map snd d.params) in
-  if not (equal env ctx (normalize env ctx t_ty) (normalize env ctx d_applied)) then raise (TypeError "Elimination target type mismatch");
-
-  (* Check motive type directly with expected universe level *)
-  let expected_motive_ty = Universe (d.level + 1) in
-  if (trace) then (Printf.printf "Checking motive against: "; print_term expected_motive_ty; print_endline "");
-
-  check env ctx p expected_motive_ty;  (* Directly check p against expected type *)
-
-  let p_normalized = normalize env ctx p in
-  let (x, a, b) = match p_normalized with
+  if not (equal env ctx t_ty d_applied) then raise (TypeError "Elimination target type mismatch");
+  let (x, a, b) = match p with
     | Pi (x, a, b) -> (x, a, b)
-    | _ -> raise (TypeError "Motive must be a dependent function type (Pi type)")
+    | _ -> raise (TypeError ("Motive must be a Pi type, got: " ^ (let s = ref "" in print_term_depth 0 p; !s)))
   in
-
-  if not (equal env ctx (normalize env ctx a) (normalize env ctx d_applied)) then raise (TypeError "Motive domain does not match target type");
-  if List.length cases <> List.length d.constrs then raise (TypeError (Printf.sprintf "Number of cases (%d) does not match number of constructors (%d)" (List.length cases) (List.length d.constrs)));
-
+  let p_ty = infer env ctx p in (match p_ty with | Universe _ -> () | _ -> raise (TypeError "Motive must be a type (Universe)"));
+  if not (equal env ctx t_ty a) then raise (TypeError "Target type does not match motive domain");
+  let result_ty = subst x t' b in
+  if (trace) then (Printf.printf "Checking elim for %s\n" d.name;
+                   Printf.printf "Target type: "; print_term t_ty; print_endline "";
+                   Printf.printf "Motive domain: "; print_term a; print_endline "";
+                   Printf.printf "Motive codomain: "; print_term b; print_endline "";
+                   Printf.printf "Motive type inferred: "; print_term p_ty; print_endline "";
+                   Printf.printf "Result type: "; print_term result_ty; print_endline "");
+  if List.length cases <> List.length d.constrs then raise (TypeError "Number of cases doesn't match constructors");
   List.iteri (fun j case ->
     let j_idx = j + 1 in
     let cj = List.assoc j_idx d.constrs in
-    let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in
-    let rec compute_case_type ty ctx_acc constr_args =
-      match normalize env ctx_acc ty with
+    let cj_subst = List.fold_left2 (fun acc (n, _) arg -> subst n arg acc) cj d.params (List.map snd d.params) in
+    let rec compute_case_type ty ctx_acc =
+      match ty with
       | Pi (x, a, b) ->
-          let var = Var x in
-          let ctx' = add_var ctx_acc x a in
-          let constr_args' = var :: constr_args in
-          let b_ty = compute_case_type b ctx' constr_args' in
-          if equal env ctx (normalize env ctx a) (normalize env ctx d_applied) 
-          then Pi (x, a, Pi ("ih", normalize env ctx (App (p, var)), b_ty))
-          else Pi (x, a, b_ty)
-      | Inductive d' when d'.name = d.name ->
-          let constr_term = Constr (j_idx, d, List.rev constr_args) in
-          normalize env ctx (subst x constr_term b)
-      | _ -> raise (TypeError (Printf.sprintf "Invalid return type for constructor %d: expected %s" 
-                                              j_idx d.name))
+          let var = Var x in let ctx' = add_var ctx_acc x a in let b_ty = compute_case_type b ctx' in
+          if equal env ctx a d_applied then Pi (x, a, Pi ("ih", App (p, var), b_ty)) else Pi (x, a, b_ty)
+      | Inductive d' when d'.name = d.name -> b
+      | _ -> raise (TypeError "Invalid constructor return type")
     in
-    let expected_ty = compute_case_type cj_subst ctx [] in
-    if (trace) then (Printf.printf "Checking case %d against: " j; print_term expected_ty; print_endline "");
-    check env ctx case expected_ty
+    let expected_ty = compute_case_type cj_subst ctx in
+    if (trace) then (Printf.printf "Checking case %d: " j; print_term case; Printf.printf " against: "; print_term expected_ty; print_endline "");
+    check env ctx case expected_ty;
+    if (trace) then Printf.printf "Case %d checked\n" j
   ) cases;
-
-  let result_ty = normalize env ctx (subst x t' b) in
-  if (trace) then (Printf.printf "Result type: "; print_term result_ty; print_endline "");
   result_ty
 
 and check env ctx t ty =

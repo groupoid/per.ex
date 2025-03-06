@@ -1,6 +1,6 @@
 (* Copyright (c) 2016—2025 Groupoid Infinity *)
 
-let trace: bool = false
+let trace: bool = true
 
 type level = int
 type name = string
@@ -140,24 +140,26 @@ and infer env ctx t =
       let cj = List.assoc j d.constrs in
       let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in
       check_constructor_args env ctx cj_subst args
-    | Elim (d, p, cases, t') -> check_elim env ctx d p cases t'
-    | J (ty, a, b, c, d, p) -> check_J env ctx ty a b c d p
+    | Elim (d, p, cases, t') -> infer_elim env ctx d p cases t'
+    | J (ty, a, b, c, d, p) -> infer_J env ctx ty a b c d p
 
-and check_universe env ctx t =
-    match infer env ctx t with
-    | Universe i -> i
-    | _ -> raise (TypeError "Expected a universe")
+(*
 
-and check_constructor_args env ctx ty args =
-    let rec check_args ty args_acc = function
-    | [] -> ty
-    | arg :: rest ->
-        (match ty with
-         | Pi (x, a, b) -> check env ctx arg a; check_args (subst x arg b) (arg :: args_acc) rest
-         | _ -> raise (TypeError "Too many arguments to constructor"))
-    in check_args ty [] args
+let implv a b = VPi (a, (Irrefutable, fun _ -> b))
 
-and check_J env ctx ty a b c d p =
+and inferJ v t =
+  let x = freshName "x" in let y = freshName "y" in let pi = freshName "P" in let p = freshName "p" in
+  let k = extSet t in let t = VPi (v, (x, fun x -> VPi (v, (y, fun y -> implv (idv v x y) (VPre k))))) in
+
+  VPi (t, (pi, fun pi ->
+    VPi (v, (x, fun x ->
+      implv (app (app (app (pi, x), x), VRef x))
+            (VPi (v, (y, fun y ->
+              VPi (idv v x y, (p, fun p ->
+                app (app (app (pi, x), y), p))))))))))
+*)
+
+and infer_J env ctx ty a b c d p =
     let a_ty = infer env ctx a in
     if not (equal env ctx a_ty ty) then raise (TypeError "J: First argument must match type A");
     let b_ty = infer env ctx b in
@@ -174,9 +176,21 @@ and check_J env ctx ty a b c d p =
     check env ctx p (Id (ty, a, b));
     let result = App (App (App (c, a), b), p) in
     if (trace) then (Printf.printf "J result type: "; print_term result; print_endline "");
-    result
+    normalize env ctx result
 
-and check_elim env ctx d p cases t' =
+and check_J env ctx ty' a b c d p =
+    check env ctx ty' (Universe 0); (* A : Type0 *)
+    check env ctx a ty'; (* a : A *)
+    check env ctx b ty'; (* b : A *)
+    let motive_ty = Pi ("x", ty', Pi ("y", ty', Pi ("p", Id (ty', Var "x", Var "y"), Universe 0))) in
+    check env ctx c motive_ty; (* C : Π(x : A).Π(y : A).Π(p : x = y).Type0 *)
+    let refl_case_ty = Pi ("x", ty', App (App (App (c, Var "x"), Var "x"), Refl (Var "x"))) in
+    check env ctx d refl_case_ty; (* d : Π(x : A).C x x (refl x) *)
+    check env ctx p (Id (ty', a, b)); (* p : Id (A, a, b) *)
+    let result_ty = App (App (App (c, a), b), p) in
+    normalize env ctx result_ty
+
+and infer_elim env ctx d p cases t' =
     let t_ty = infer env ctx t' in
     let d_applied = apply_inductive d (List.map snd d.params) in
     if not (equal env ctx t_ty d_applied) then raise (TypeError "Elimination target type mismatch");
@@ -212,6 +226,21 @@ and check_elim env ctx d p cases t' =
     ) cases;
     result_ty
 
+and check_universe env ctx t =
+    match infer env ctx t with
+    | Universe i -> i
+    | _ -> raise (TypeError "Expected a universe")
+
+and check_constructor_args env ctx ty args =
+    let rec check_args ty args_acc = function
+    | [] -> ty
+    | arg :: rest ->
+        (match ty with
+         | Pi (x, a, b) -> check env ctx arg a; check_args (subst x arg b) (arg :: args_acc) rest
+         | _ -> raise (TypeError "Too many arguments to constructor"))
+    in check_args ty [] args
+
+
 and check env ctx t ty =
     if (trace) then (Printf.printf "Checking: "; print_term t; print_string " against "; print_term ty; print_endline "");
     match t, ty with
@@ -225,7 +254,7 @@ and check env ctx t ty =
     | Constr (j, d, args), Inductive d' when d.name = d'.name ->
         let inferred = infer env ctx t in if not (equal env ctx inferred ty) then raise (TypeError "Constructor type mismatch")
     | Elim (d, p, cases, t'), ty ->
-        let inferred = check_elim env ctx d p cases t' in
+        let inferred = infer_elim env ctx d p cases t' in
         if not (equal env ctx inferred ty) then raise (TypeError "Elimination type mismatch")
     | Pair (a, b), Sigma (x, a_ty, b_ty) ->
         check env ctx a a_ty;
@@ -463,21 +492,6 @@ let subst_eq =
          Lam ("x", nat_ind, Var "x"),  (* x : P a *)
          Var "p"))))))
 
-let id_symm =
-  Lam ("A", Universe 0, Lam ("a", Var "A", Lam ("b", Var "A", Lam ("p", Id (Var "A", Var "a", Var "b"),
-    J (Var "A", Var "a", Var "b",
-       Pi ("x", Var "A", Pi ("y", Var "A", Pi ("p", Id (Var "A", Var "x", Var "y"), Id (Var "A", Var "y", Var "x")))),
-       Lam ("x", Var "A", Refl (Var "x")),
-       Var "p")))))
-
-let id_trans =
-  Lam ("A", Universe 0, Lam ("a", Var "A", Lam ("b", Var "A", Lam ("c", Var "A",
-    Lam ("p", Id (Var "A", Var "a", Var "b"), Lam ("q", Id (Var "A", Var "b", Var "c"),
-      J (Var "A", Var "a", Var "c",
-         Pi ("x", Var "A", Pi ("y", Var "A", Pi ("p", Id (Var "A", Var "x", Var "y"), Id (Var "A", Var "x", Var "c")))),
-         Lam ("x", Var "A", Var "q"),
-         Var "p")))))))
-
 let id_symmetry =  (* Symmetry: a = b → b = a *)
   Lam ("a", nat_ind, Lam ("b", nat_ind, Lam ("p", Id (nat_ind, Var "a", Var "b"),
     J (nat_ind, Var "a", Var "b",
@@ -485,13 +499,14 @@ let id_symmetry =  (* Symmetry: a = b → b = a *)
        Lam ("x", nat_ind, Refl (Var "x")),
        Var "p"))))
 
-let id_transitivity =
-  Lam ("a", nat_ind, Lam ("b", nat_ind, Lam ("c", nat_ind,
-    Lam ("p", Id (nat_ind, Var "a", Var "b"), Lam ("q", Id (nat_ind, Var "b", Var "c"),
-      J (nat_ind, Var "a", Var "c",
-         Pi ("x", nat_ind, Pi ("y", nat_ind, Pi ("p", Id (nat_ind, Var "x", Var "y"), Id (nat_ind, Var "x", Var "c")))),
-         Lam ("Whyx", nat_ind, Var "q"),
-         Var "p"))))))
+let id_transitivity = (* Transitivity: a = b ∧ b = c → a = c *)
+    Lam ("a", nat_ind, Lam ("b", nat_ind, Lam ("c", nat_ind,
+    Lam ("p", Id (nat_ind, Var "a", Var "b"),
+    Lam ("q", Id (nat_ind, Var "b", Var "c"),
+    J (nat_ind, Var "a", Var "b",
+      Pi ("x", nat_ind, Pi ("y", nat_ind, Pi ("_", Id (nat_ind, Var "x", Var "y"), Id (nat_ind, Var "b", Var "c")))),
+      Lam ("_", nat_ind, Var "q"),
+      Var "p"))))))
 
 let empty_ctx : context = []
 
@@ -501,7 +516,6 @@ let test () =
   let one = Constr (2, nat_def, [zero]) in
   let two = Constr (2, nat_def, [one]) in
   let add_term = App (App (plus, two), two) in
-  let add_normal = normalize env empty_ctx add_term in
 
   let pair_term = Pair (zero, one) in
   let pair_ty = Sigma ("x", nat_ind, nat_ind) in
@@ -511,37 +525,36 @@ let test () =
   let id_ty = Id (nat_ind, zero, zero) in
 
   let sym_term = App (App (App (id_symmetry, zero), zero), Refl zero) in
-  let trans_term = App (App (App (App (App (id_trans, zero), one), one), Refl zero), Refl one) in
+  let trans_term = App (App (App (App (App (id_transitivity, zero), zero), zero), Refl zero), Refl zero) in
 
-  Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
-  Printf.printf "List.length: "; print_term (normalize env empty_ctx (App (list_length, sample_list))); print_endline "";
-  Printf.printf "Nat.Elim: "; print_term nat_elim; print_endline "";
+  try let succ_ty = infer env ctx succ in
+      let plus_ty = infer env ctx plus in
+      let nat_elim_ty = infer env ctx nat_elim in
+      let _ = check env ctx pair_term pair_ty in
+      let fst_ty = infer env ctx fst_term in
+      let snd_ty = infer env ctx snd_term in
+      let sym_ty = infer env ctx sym_term in
+      let _ = check env ctx id_term id_ty in
+      let trans_ty = infer env ctx trans_term in
+      let add_normal = normalize env empty_ctx add_term in
 
-  try
-    let succ_ty = infer env ctx succ in
-    Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";
-    let plus_ty = infer env ctx plus in
-    Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline "";
-    let nat_elim_ty = infer env ctx nat_elim in
-    Printf.printf "typeof(Nat.elim): "; print_term nat_elim_ty; print_endline "";
-    check env ctx pair_term pair_ty;
-    Printf.printf "typeof(Sigma.pair): "; print_term pair_term; print_endline "";
-    let fst_ty = infer env ctx fst_term in
-    Printf.printf "typeof(Sigma.fst(Sigma.pair)): "; print_term fst_ty; print_endline "";
-    let snd_ty = infer env ctx snd_term in
-    Printf.printf "typeof(Sigma.snd(Sigma.pair)): "; print_term snd_ty; print_endline "";
-    let sym_ty = infer env ctx sym_term in
-    Printf.printf "typeof(id_symmetry): "; print_term sym_ty; print_endline "";
-    Printf.printf "symmetry reduces to: "; print_term (normalize env ctx sym_term); print_endline ""; 
-    Printf.printf "Checking id_term: "; print_term id_term; print_string " against "; print_term id_ty; print_endline ""; 
-    check env ctx id_term id_ty;
-    Printf.printf "typeof(id_term)=id_ty\n";
-    Printf.printf "norm(subst_eq): "; print_term (normalize env ctx subst_eq); print_endline "";
-    Printf.printf "norm(tran_term): "; print_term (normalize env ctx trans_term); print_endline ""; 
-(*  Printf.printf "===================================\n";
-    let trans_ty = infer env ctx trans_term in 
-    Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline ""; *)
+      Printf.printf "Nat.add: "; print_term add_normal; print_endline "";
+      Printf.printf "List.length: "; print_term (normalize env empty_ctx (App (list_length, sample_list))); print_endline "";
+      Printf.printf "Nat.Elim: "; print_term nat_elim; print_endline "";
+      Printf.printf "typeof(Nat.succ): "; print_term succ_ty; print_endline "";
+      Printf.printf "typeof(Nat.plus): "; print_term plus_ty; print_endline "";
+      Printf.printf "typeof(Nat.elim): "; print_term nat_elim_ty; print_endline "";
+      Printf.printf "typeof(Sigma.pair): "; print_term pair_term; print_endline "";
+      Printf.printf "typeof(Sigma.fst(Sigma.pair)): "; print_term fst_ty; print_endline "";
+      Printf.printf "typeof(Sigma.snd(Sigma.pair)): "; print_term snd_ty; print_endline "";
+      Printf.printf "typeof(id_symmetry): "; print_term sym_ty; print_endline "";
+      Printf.printf "symmetry reduces to: "; print_term (normalize env ctx sym_term); print_endline ""; 
+      Printf.printf "Checking id_term: "; print_term id_term; print_string " against "; print_term id_ty; print_endline ""; 
+      Printf.printf "typeof(id_term)=id_ty\n";
+      Printf.printf "norm(subst_eq): "; print_term (normalize env ctx subst_eq); print_endline "";
+      Printf.printf "norm(tran_term): "; print_term (normalize env ctx trans_term); print_endline "";
+      Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline ""
 
-    with TypeError msg -> print_endline ("Type error: " ^ msg)
+  with TypeError msg -> print_endline ("Type error: " ^ msg)
 
 let _ = test ()

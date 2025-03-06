@@ -338,8 +338,8 @@ let test () =
       Printf.printf "Checking id_term: "; print_term id_term; print_string " against ";
                     print_term id_ty; print_endline ""; 
       Printf.printf "typeof(id_term)=id_ty\n";
-      Printf.printf "norm(subst_eq): "; print_term (normalize env ctx subst_eq); print_endline "";
-      Printf.printf "norm(tran_term): "; print_term (normalize env ctx trans_term); print_endline "";
+      Printf.printf "norm(subst_eq): "; print_term subst_norm; print_endline "";
+      Printf.printf "norm(tran_term): "; print_term trans_norm; print_endline "";
       Printf.printf "typeof(id_transitivity): "; print_term trans_ty; print_endline "";
 
   with TypeError msg -> print_endline ("Type error: " ^ msg)

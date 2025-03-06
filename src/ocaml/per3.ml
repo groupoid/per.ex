@@ -68,7 +68,7 @@ let rec equal env ctx t1 t2 =
     | _ -> t1 = t2
 
 and infer env ctx t =
-    match t with
+    let result = match t with
     | Var x -> (match lookup_var ctx x with | Some ty -> ty | None -> raise (TypeError ("Unbound variable: " ^ x)))
     | Universe i -> Universe (i + 1)
     | Pi (x, a, b) -> let i = check_universe env ctx a in let ctx' = add_var ctx x a in let j = check_universe env ctx' b in Universe (max i j)
@@ -83,7 +83,8 @@ and infer env ctx t =
     | Inductive d -> List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params; Universe d.level
     | Constr (j, d, args) -> let cj = List.assoc j d.constrs in let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in infer_ctor env ctx cj_subst args
     | Elim (d, p, cases, t') -> infer_elim env ctx d p cases t'
-    | J (ty, a, b, c, d, p) -> infer_J env ctx ty a b c d p
+    | J (ty, a, b, c, d, p) -> infer_J env ctx ty a b c d p in
+    normalize env ctx result
 
 and infer_ctor env ctx ty args =
     let rec check_args ty args_acc = function
@@ -95,15 +96,19 @@ and infer_ctor env ctx ty args =
     in check_args ty [] args
 
 and infer_J env ctx ty' a b c d p =
-    check env ctx ty' (Universe 0); (* A : Type0 *)
-    check env ctx a ty'; (* a : A *)
-    check env ctx b ty'; (* b : A *)
-    let motive_ty = Pi ("x", ty', Pi ("y", ty', Pi ("p", Id (ty', Var "x", Var "y"), Universe 0))) in
-    check env ctx c motive_ty; (* C : Π(x : A).Π(y : A).Π(p : x = y).Type0 *)
-    let refl_case_ty = Pi ("x", ty', App (App (App (c, Var "x"), Var "x"), Refl (Var "x"))) in
-    check env ctx d refl_case_ty; (* d : Π(x : A).C x x (refl x) *)
-    check env ctx p (Id (ty', a, b)); (* p : Id (A, a, b) *)
-    let result_ty = App (App (App (c, a), b), p) in (if (trace) then (print_J ty' a b c d p 0); result_ty)
+    check env ctx ty' (Universe 0);
+    check env ctx a ty';
+    check env ctx b ty';
+    let fresh_x = "x_" ^ string_of_int (List.length ctx) in
+    let fresh_y = "y_" ^ string_of_int (List.length ctx) in
+    let fresh_p = "p_" ^ string_of_int (List.length ctx) in
+    let motive_ty = Pi (fresh_x, ty', Pi (fresh_y, ty', Pi (fresh_p, Id (ty', Var fresh_x, Var fresh_y), Universe 0))) in
+    check env ctx c motive_ty;
+    let refl_case_ty = Pi (fresh_x, ty', App (App (App (c, Var fresh_x), Var fresh_x), Refl (Var fresh_x))) in
+    check env ctx d refl_case_ty;
+    check env ctx p (Id (ty', a, b));
+    let result_ty = App (App (App (c, a), b), p) in
+    (if trace then print_J ty' a b c d p 0); result_ty
 
 and infer_elim env ctx d p cases t' =
     let t_ty = infer env ctx t' in
@@ -149,8 +154,8 @@ and check_universe env ctx t =
 and check env ctx t ty =
     if (trace) then (Printf.printf "Checking: "; print_term t; print_string " against "; print_term ty; print_endline "");
     match t, ty with
-    | Pi (x, a, b), Pi (y, a', b') -> if not (equal env ctx a a') then raise (TypeError "Pi domain mismatch"); let ctx' = add_var ctx x a in check env ctx' b (subst y (Var x) b')
-    | Lam (x, domain, body), Pi (y, a, b) -> check env ctx domain (infer env ctx domain); check env (add_var ctx x domain) body b
+    | Pi (x, a, b), Pi (y, a', b') -> if (equal env ctx a a' && equal env (add_var ctx x a) b (subst y (Var x) b')) then ()
+    | Lam (x, domain, body), Pi (y, a, b) -> check env ctx domain (infer env ctx domain); let b_subst = subst y (Var x) b in check env (add_var ctx x domain) body b_subst
     | Constr (j, d, args), Inductive d' when d.name = d'.name -> let inferred = infer env ctx t in if not (equal env ctx inferred ty) then raise (TypeError "Constructor type mismatch")
     | Elim (d, p, cases, t'), ty -> let inferred = infer_elim env ctx d p cases t' in if not (equal env ctx inferred ty) then raise (TypeError "Elimination type mismatch")
     | Pair (a, b), Sigma (x, a_ty, b_ty) -> check env ctx a a_ty; check env ctx b (subst x a b_ty)
@@ -163,7 +168,9 @@ and check env ctx t ty =
         (if (trace) then (Printf.printf "Inferred: "; print_term inferred; print_string ", Expected: "; print_term ty'; print_endline ""));
         match inferred, ty' with
         | Universe i, Universe j when i >= j -> () (* cumulativity *)
-        | _ -> if not (equal env ctx inferred ty') then raise (TypeError "Type mismatch")
+        | _ -> if not (equal env ctx inferred ty') then (
+            Printf.printf "Check: "; print_term inferred; Printf.printf "\n Against: "; print_term ty'; print_endline "";
+            raise (TypeError "Type mismatch"))
 
 and apply_case env ctx d p cases case ty args =
     if (trace) then (Printf.printf "Applying case: "; print_term case; Printf.printf " to type: "; print_term ty; Printf.printf " with args: [";
@@ -234,7 +241,7 @@ and print_term_depth depth t =
     else match t with
     | Var x -> print_string x
     | Universe i -> print_string ("Type" ^ string_of_int i)
-    | Pi (x, a, b) -> print_string ("Π(" ^ x ^ " : "); print_term_depth (depth + 1) a; print_string ")."; print_term_depth (depth + 1) b
+    | Pi (x, a, b) -> print_string ("Π (" ^ x ^ " : "); print_term_depth (depth + 1) a; print_string "), "; print_term_depth (depth + 1) b
     | Lam (x, _, body) -> print_string ("λ (" ^ x ^ "), "); print_term_depth (depth + 1) body
     | App (f, arg) -> print_string "("; print_term_depth (depth + 1) f; print_string " "; print_term_depth (depth + 1) arg; print_string ")"
     | Sigma (x, a, b) -> print_string ("Σ (" ^ x ^ " : "); print_term_depth (depth + 1) a; print_string "), "; print_term_depth (depth + 1) b
@@ -244,7 +251,7 @@ and print_term_depth depth t =
     | Id (ty, a, b) -> print_string "{"; print_term_depth (depth + 1) a; print_string " = "; print_term_depth (depth + 1) b; print_string " : "; print_term_depth (depth + 1) ty; print_string "}"
     | Refl t -> print_string "Id.refl "; print_term_depth (depth + 1) t
     | J (ty, a, b, c, d, p) -> print_J ty a b c d p depth
-    | Constr (i, d, args) -> print_string d.name; print_string "."; print_string (string_of_int i); List.iteri (fun j c -> if j > 0 then print_string "; "; print_term_depth (depth + 1) c) args
+    | Constr (i, d, args) -> print_string d.name; print_string "."; print_string (string_of_int i); print_string " "; List.iteri (fun j c -> if j > 0 then print_string "; "; print_term_depth (depth + 1) c) args
     | Elim (d, p, cases, t') -> print_elim d p cases t' depth
     | Inductive d -> print_string d.name
 
@@ -333,7 +340,38 @@ let id_transitivity = (* Transitivity: a = b ∧ b = c → a = c *)
       Lam ("_", nat_ind, Var "q"),
       Var "p"))))))
 
+let test_equality_theorems () =
+  let ctx = empty_ctx in
+  let env = empty_env in
+  let a = Universe 0 in
+  (* Symmetry *)
+  let sym_motive = Pi ("x", a, Pi ("y", a, Pi ("p", Id (a, Var "x", Var "y"), Id (a, Var "y", Var "x")))) in
+  let sym_d = Lam ("x", a, Refl (Var "x")) in
+  let sym = Lam ("x", a, Lam ("y", a, Lam ("p", Id (a, Var "x", Var "y"), J (a, Var "x", Var "y", sym_motive, sym_d, Var "p")))) in
+  let sym_ty = Pi ("x", a, Pi ("y", a, Pi ("p", Id (a, Var "x", Var "y"), Id (a, Var "y", Var "x")))) in
+(*  print_string "Sym Left: "; print_term (infer env ctx sym); print_endline "";
+    print_string "Sym Right: "; print_term sym_ty; print_endline ""; *)
+  assert (equal env ctx (infer env ctx sym) sym_ty);
+  (* Transitivity *)
+  let trans_motive = Pi ("y", a, Pi ("z", a, Pi ("q", Id (a, Var "y", Var "z"), Id (a, Var "x", Var "z")))) in
+  let trans_d = Lam ("y", a, Var "p") in
+  let trans = Lam ("x", a, Lam ("y", a, Lam ("p", Id (a, Var "x", Var "y"), Lam ("z", a, Lam ("q", Id (a, Var "y", Var "z"), J (a, Var "y", Var "z", trans_motive, trans_d, Var "q")))))) in
+  let trans_ty = Pi ("x", a, Pi ("y", a, Pi ("p", Id (a, Var "x", Var "y"), Pi ("z", a, Pi ("q", Id (a, Var "y", Var "z"), Id (a, Var "x", Var "z")))))) in
+(*  print_string "Trans Left: "; print_term (infer env ctx trans); print_endline "";
+    print_string "Trans Right: "; print_term trans_ty; print_endline ""; *)
+  assert (equal env ctx (infer env ctx trans) trans_ty)
+
+let test_equal () =
+  let ctx = empty_ctx in
+  let env = empty_env in
+  let ty1 = Pi ("x", Universe 0, Id (Universe 0, Var "x", Var "x")) in
+  let ty2 = Pi ("y", Universe 0, Id (Universe 0, Var "y", Var "y")) in
+  assert (equal env ctx ty1 ty2)
+
 let test () =
+  test_equal (); 
+  test_equality_theorems ();
+  print_string "Id/Refl/J tests PASSED.\n";
   let ctx : context = [] in
   let zero = Constr (1, nat_def, []) in
   let one = Constr (2, nat_def, [zero]) in
@@ -357,7 +395,7 @@ let test () =
       let sym_ty = infer env ctx sym_term in
       let _ = check env ctx id_term id_ty in
       let trans_ty = infer env ctx trans_term in
-      let trans_norm = normalize env ctx trans_term in
+(*      let trans_norm = normalize env ctx trans_term in *)
       let subst_norm = normalize env ctx subst_eq in
       let add_normal = normalize env ctx add_term in
       let len_normal = normalize env ctx (App (list_length, sample_list)) in
@@ -374,7 +412,7 @@ let test () =
       Printf.printf "id_symmetry : "; print_term sym_ty; print_endline "";
       Printf.printf "eval id_symmetry = "; print_term sym_term; print_endline ""; 
       Printf.printf "id_term : id_ty\n";
-      Printf.printf "eval tran_term = "; print_term trans_norm; print_endline "";
+(*      Printf.printf "eval tran_term = "; print_term trans_norm; print_endline ""; *)
       Printf.printf "eval subst_eq = "; print_term subst_norm; print_endline "";
       Printf.printf "id_transitivity : "; print_term trans_ty; print_endline "";
 

@@ -259,85 +259,32 @@ and normalize env ctx t =
     if (trace) then (Printf.printf "One-step β-reductor: "; print_term t'; print_endline "");
     if equal env ctx t t' then t else normalize env ctx t'
 
+and print_J ty a b c d p depth =
+    print_string "J ("; print_term_depth (depth + 1) ty; print_string ", "; print_term_depth (depth + 1) a; print_string ", "; print_term_depth (depth + 1) b;
+    print_string ", "; print_term_depth (depth + 1) c; print_string ", "; print_term_depth (depth + 1) d; print_string ", "; print_term_depth (depth + 1) p; print_string ")"
+
+and print_elim d p cases t' depth =
+    print_string (d.name ^ ".elim "); print_term_depth (depth + 1) p;
+    print_string " ["; List.iteri (fun i c -> if i > 0 then print_string "; "; print_term_depth (depth + 1) c) cases; print_string "] ";
+    print_term_depth (depth + 1) t'
+
 and print_term_depth depth t =
     if depth > 10 then print_string "<deep>"
     else match t with
     | Var x -> print_string x
     | Universe i -> print_string ("Type" ^ string_of_int i)
-    | Pi (x, a, b) ->
-        print_string ("Π(" ^ x ^ " : ");
-        print_term_depth (depth + 1) a;
-        print_string ").";
-        print_term_depth (depth + 1) b
-    | Lam (x, _, body) ->
-        print_string ("λ" ^ x ^ ".");
-        print_term_depth (depth + 1) body
-    | App (f, arg) ->
-        print_string "(";
-        print_term_depth (depth + 1) f;
-        print_string " ";
-        print_term_depth (depth + 1) arg;
-        print_string ")"
-    | Sigma (x, a, b) ->
-        print_string ("Σ(" ^ x ^ " : ");
-        print_term_depth (depth + 1) a;
-        print_string ").";
-        print_term_depth (depth + 1) b
-    | Pair (a, b) ->
-        print_string "(";
-        print_term_depth (depth + 1) a;
-        print_string ", ";
-        print_term_depth (depth + 1) b;
-        print_string ")"
-    | Fst t ->
-        print_string "fst ";
-        print_term_depth (depth + 1) t
-    | Snd t ->
-        print_string "snd ";
-        print_term_depth (depth + 1) t
-    | Id (ty, a, b) ->
-        print_string "{";
-        print_term_depth (depth + 1) a;
-        print_string " = ";
-        print_term_depth (depth + 1) b;
-        print_string " : ";
-        print_term_depth (depth + 1) ty;
-        print_string "}"
-    | Refl t ->
-        print_string "refl ";
-        print_term_depth (depth + 1) t
-    | J (ty, a, b, c, d, p) ->
-        print_string "J(";
-        print_term_depth (depth + 1) ty;
-        print_string ", ";
-        print_term_depth (depth + 1) a;
-        print_string ", ";
-        print_term_depth (depth + 1) b;
-        print_string ", ";
-        print_term_depth (depth + 1) c;
-        print_string ", ";
-        print_term_depth (depth + 1) d;
-        print_string ", ";
-        print_term_depth (depth + 1) p;
-        print_string ")"
-    | Constr (i, d, args) ->
-        print_string d.name;
-        print_string ".";
-        print_string (string_of_int i);
-        List.iteri (fun j c ->
-          if j > 0 then print_string "; ";
-          print_term_depth (depth + 1) c
-        ) args
-    | Elim (d, p, cases, t') ->
-        print_string (d.name ^ ".elim ");
-        print_term_depth (depth + 1) p;
-        print_string " [";
-        List.iteri (fun i c ->
-          if i > 0 then print_string "; ";
-          print_term_depth (depth + 1) c
-        ) cases;
-        print_string "] ";
-        print_term_depth (depth + 1) t'
+    | Pi (x, a, b) -> print_string ("Π(" ^ x ^ " : "); print_term_depth (depth + 1) a; print_string ")."; print_term_depth (depth + 1) b
+    | Lam (x, _, body) -> print_string ("λ (" ^ x ^ "), "); print_term_depth (depth + 1) body
+    | App (f, arg) -> print_string "("; print_term_depth (depth + 1) f; print_string " "; print_term_depth (depth + 1) arg; print_string ")"
+    | Sigma (x, a, b) -> print_string ("Σ (" ^ x ^ " : "); print_term_depth (depth + 1) a; print_string "), "; print_term_depth (depth + 1) b
+    | Pair (a, b) -> print_string "("; print_term_depth (depth + 1) a; print_string ", "; print_term_depth (depth + 1) b; print_string ")"
+    | Fst t -> print_string "fst "; print_term_depth (depth + 1) t
+    | Snd t -> print_string "snd "; print_term_depth (depth + 1) t
+    | Id (ty, a, b) -> print_string "{"; print_term_depth (depth + 1) a; print_string " = "; print_term_depth (depth + 1) b; print_string " : "; print_term_depth (depth + 1) ty; print_string "}"
+    | Refl t -> print_string "Id.refl "; print_term_depth (depth + 1) t
+    | J (ty, a, b, c, d, p) -> print_J ty a b c d p depth
+    | Constr (i, d, args) -> print_string d.name; print_string "."; print_string (string_of_int i); List.iteri (fun j c -> if j > 0 then print_string "; "; print_term_depth (depth + 1) c) args
+    | Elim (d, p, cases, t') -> print_elim d p cases t' depth
     | Inductive d -> print_string d.name
 
 and print_term t = print_term_depth 0 t
@@ -345,27 +292,21 @@ and print_term t = print_term_depth 0 t
 (* Example definitions *)
 
 let nat_def = {
-  name = "Nat";
-  params = [];
-  level = 0;
+  mutual_group = ["Nat"];
+  name = "Nat"; params = []; level = 0;
   constrs = [
     (1, Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] });
     (2, Pi ("n", Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] },
-           Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] }))
-  ];
-  mutual_group = ["Nat"]
+           Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] }))]
 }
 
 let list_def (a : term) = {
-  name = "List";
-  params = [("A", a)];
-  level = (match a with Universe i -> i | _ -> failwith "List param must be a type");
+  mutual_group = ["List"];
+  name = "List"; params = [("A", a)]; level = (match a with Universe i -> i | _ -> failwith "List param must be a type");
   constrs = [
     (1, Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] }); (* nil *)
     (2, Pi ("x", a, Pi ("xs", Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] },
-                        Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] }))) (* cons *)
-  ];
-  mutual_group = ["List"]
+                        Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] }))) (* cons *) ]
 }
 
 let env = [("Nat", nat_def); ("List", list_def (Universe 0))]

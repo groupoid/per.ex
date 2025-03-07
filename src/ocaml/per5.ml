@@ -13,7 +13,6 @@ type term =
   | Sigma of name * term * term | Pair of term * term | Fst of term | Snd of term
   | Id of term * term * term | Refl of term | J of term * term * term * term * term * term  (* J A a b C d p *)
   | Inductive of inductive | Constr of int * inductive * term list | Ind of inductive * term * term list * term
-  | Prop | Hole | Axiom of name * term
 and inductive = { name : string; params : (name * term) list; level : level; constrs : (int * term) list; mutual_group : string list }
 
 type env = (string * inductive) list
@@ -179,7 +178,6 @@ and check env ctx t ty =
     | _, _ ->
         let inferred = infer env ctx t in
         let ty' = normalize env ctx ty in
-        (if (trace) then (Printf.printf "Inferred: "; print_term inferred; print_string ", Expected: "; print_term ty'; print_endline ""));
         match inferred, ty' with
         | Universe i, Universe j when i >= j -> () (* cumulativity *)
         | _ -> if not (equal env ctx inferred ty') then

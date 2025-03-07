@@ -77,7 +77,7 @@ and equal' env ctx t1 t2 =
     | J (ty, a, b, c, d, p), J (ty', a', b', c', d', p') -> equal' env ctx ty ty' && equal' env ctx a a' && equal' env ctx b b' && equal' env ctx c c' && equal' env ctx d d' && equal' env ctx p p'
     | _ -> t1 = t2
 
-and is_lam = function | Lam _ -> true | Pi _ -> true | _ -> false
+and is_lam = function | Lam _ -> true | _ -> false
 
 and pos x t =
     match t with

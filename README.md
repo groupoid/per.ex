@@ -1,7 +1,7 @@
 Per Martin-Löf: Calculus of Inductive Constructions
 ===================================================
 
-<img src="https://per.groupoid.space/img/per.jpg">
+<img src="https://per.groupoid.space/img/per.jpg" height=400>
 
 ## Abstract
 

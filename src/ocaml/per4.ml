@@ -1,6 +1,6 @@
 (* Copyright (c) 2016—2025 Groupoid Infinity *)
 
-(* PURE TYPE CHECKER *)
+(* TYPE CHECKER CORE LANGUAGE *)
 
 let trace: bool = false
 
@@ -481,7 +481,7 @@ let test () =
         Printf.printf "id_transitivity : "; print_term trans_ty; print_endline "";
     with TypeError msg -> print_endline ("Type error: " ^ msg)
 
-(* TACTICS LANGUAGE *)
+(* THEOREM PROVER TACTICS LANGUAGE *)
 
 type goal = {
   ctx : context;          (* Current context *)

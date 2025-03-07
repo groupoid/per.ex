@@ -79,24 +79,24 @@ and equal' env ctx t1 t2 =
 
 and is_lam = function | Lam _ -> true | Pi _ -> true | _ -> false
 
-and positive x t =
+and pos x t =
     match t with
-    | Var y -> y = x  (* Positive if x appears standalone *)
+    | Var y -> y = x  (* pos if x appears standalone *)
     | Universe _ -> false
-    | Pi (y, a, b) -> positive x a || (y <> x && positive x b)
-    | Lam (y, a, t') -> positive x a || (y <> x && positive x t')
-    | App (f, a) -> positive x f || positive x a  (* Positive in argument *)
-    | Sigma (y, a, b) -> positive x a || (y <> x && positive x b)
-    | Pair (a, b) -> positive x a || positive x b
-    | Fst p -> positive x p
-    | Snd p -> positive x p
-    | Id (ty, a, b) -> positive x ty || positive x a || positive x b
-    | Refl a -> positive x a
-    | Inductive d -> List.exists (fun (_, ty) -> positive x ty) d.constrs
-    | Constr (_, _, args) -> List.exists (positive x) args
-    | Ind (_, p, cases, t') -> positive x p || List.exists (positive x) cases || positive x t'
-    | J (ty, a, b, c, d, p) -> positive x ty || positive x a || positive x b || 
-                               positive x c || positive x d || positive x p
+    | Pi (y, a, b) -> pos x a || (y <> x && pos x b)
+    | Lam (y, a, t') -> pos x a || (y <> x && pos x t')
+    | App (f, a) -> pos x f || pos x a  (* pos in argument *)
+    | Sigma (y, a, b) -> pos x a || (y <> x && pos x b)
+    | Pair (a, b) -> pos x a || pos x b
+    | Fst p -> pos x p
+    | Snd p -> pos x p
+    | Id (ty, a, b) -> pos x ty || pos x a || pos x b
+    | Refl a -> pos x a
+    | Inductive d -> List.exists (fun (_, ty) -> pos x ty) d.constrs
+    | Constr (_, _, args) -> List.exists (pos x) args
+    | Ind (_, p, cases, t') -> pos x p || List.exists (pos x) cases || pos x t'
+    | J (ty, a, b, c, d, p) -> pos x ty || pos x a || pos x b || 
+                               pos x c || pos x d || pos x p
 
 and is_positive env ctx ty ind_name =
     match ty with
@@ -120,7 +120,7 @@ and infer env ctx t =
     | Pi (x, a, b) -> let i = check_universe env ctx a in let ctx' = add_var ctx x a in let j = check_universe env ctx' b in Universe (max i j)
     | Lam (x, domain, body) -> 
         check env ctx domain (infer env ctx domain); let ctx' = add_var ctx x domain in let body_ty = infer env ctx' body in 
-        if not (positive x body) then raise (TypeError ("Bound variable " ^ x ^ " has no positive occurrence in lambda body; potential non-termination"));
+        if not (pos x body) then raise (TypeError ("Bound variable " ^ x ^ " has no positive occurrence in lambda body; potential non-termination"));
         Pi (x, domain, body_ty)
     | App (f, arg) -> (match infer env ctx f with | Pi (x, a, b) -> check env ctx arg a; subst x arg b | ty -> Printf.printf "App failed: inferred "; print_term ty; print_endline ""; raise (TypeError "Application requires a Pi type"))
     | Sigma (x, a, b) -> let i = check_universe env ctx a in let ctx' = add_var ctx x a in let j = check_universe env ctx' b in Universe (max i j)

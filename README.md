@@ -10,8 +10,8 @@ as a minimal core for a dependently-typed lambda calculus.
 The system adheres to strict constraints: no pattern matching,
 no let-bindings, no implicit arguments, no modules or namespaces,
 and no function extensionality. It supports universes, dependent
-products (Pi), dependent pairs (Sigma), identity types (Id), and
-inductive types with strict positivity enforcement. We enumerate
+products `Pi`, dependent pairs `Sigma`, identity types `Id`, and
+`Inductive` types with strict positivity enforcement. We enumerate
 and analyze its mathematical properties, focusing on correctness,
 soundness, totality, and related attributes relevant to formal
 mathematics.

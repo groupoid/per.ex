@@ -14,7 +14,7 @@ It supports universes, dependent products `Pi`, dependent pairs `Sigma`,
 identity types `Id`, and `Inductive` types with strict positivity enforcement.
 Its mathematical properties, focusing on correctness,
 soundness, totality, and related attributes relevant
-to formal mathematics are being analized.
+to formal mathematics are being analyzed.
 
 ## Intro
 

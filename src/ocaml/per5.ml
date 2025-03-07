@@ -79,6 +79,25 @@ and equal' env ctx t1 t2 =
 
 and is_lam = function | Lam _ -> true | Pi _ -> true | _ -> false
 
+and has_positive_occurrence x t =
+    match t with
+    | Var y -> y = x  (* Positive if x appears standalone *)
+    | Universe _ -> false
+    | Pi (y, a, b) -> has_positive_occurrence x a || (y <> x && has_positive_occurrence x b)
+    | Lam (y, a, t') -> has_positive_occurrence x a || (y <> x && has_positive_occurrence x t')
+    | App (f, a) -> has_positive_occurrence x f || has_positive_occurrence x a  (* Positive in argument *)
+    | Sigma (y, a, b) -> has_positive_occurrence x a || (y <> x && has_positive_occurrence x b)
+    | Pair (a, b) -> has_positive_occurrence x a || has_positive_occurrence x b
+    | Fst p -> has_positive_occurrence x p
+    | Snd p -> has_positive_occurrence x p
+    | Id (ty, a, b) -> has_positive_occurrence x ty || has_positive_occurrence x a || has_positive_occurrence x b
+    | Refl a -> has_positive_occurrence x a
+    | Inductive d -> List.exists (fun (_, ty) -> has_positive_occurrence x ty) d.constrs
+    | Constr (_, _, args) -> List.exists (has_positive_occurrence x) args
+    | Ind (_, p, cases, t') -> has_positive_occurrence x p || List.exists (has_positive_occurrence x) cases || has_positive_occurrence x t'
+    | J (ty, a, b, c, d, p) -> has_positive_occurrence x ty || has_positive_occurrence x a || has_positive_occurrence x b || 
+                               has_positive_occurrence x c || has_positive_occurrence x d || has_positive_occurrence x p
+
 and is_positive env ctx ty ind_name =
     match ty with
     | Pi (x, a, b) -> 
@@ -99,7 +118,14 @@ and infer env ctx t =
     | Var x -> (match lookup_var ctx x with | Some ty -> ty | None -> raise (TypeError ("Unbound variable: " ^ x)))
     | Universe i -> if i < 0 then raise (TypeError "Negative universe level"); Universe (i + 1)
     | Pi (x, a, b) -> let i = check_universe env ctx a in let ctx' = add_var ctx x a in let j = check_universe env ctx' b in Universe (max i j)
-    | Lam (x, domain, body) -> let ctx' = add_var ctx x domain in let body_ty = infer env ctx' body in Pi (x, domain, body_ty)
+(*  | Lam (x, domain, body) -> let ctx' = add_var ctx x domain in let body_ty = infer env ctx' body in Pi (x, domain, body_ty) *)
+    | Lam (x, domain, body) -> 
+        check env ctx domain (infer env ctx domain); 
+        let ctx' = add_var ctx x domain in 
+        let body_ty = infer env ctx' body in 
+        if not (has_positive_occurrence x body) then 
+            raise (TypeError ("Bound variable " ^ x ^ " has no positive occurrence in lambda body; potential non-termination"));
+        Pi (x, domain, body_ty)
     | App (f, arg) -> (match infer env ctx f with | Pi (x, a, b) -> check env ctx arg a; subst x arg b | ty -> Printf.printf "App failed: inferred "; print_term ty; print_endline ""; raise (TypeError "Application requires a Pi type"))
     | Sigma (x, a, b) -> let i = check_universe env ctx a in let ctx' = add_var ctx x a in let j = check_universe env ctx' b in Universe (max i j)
     | Pair (a, b) -> let a_ty = infer env ctx a in let b_ty = infer env ctx b in Sigma ("x", a_ty, b_ty)
@@ -453,6 +479,15 @@ let test_edge_cases () =
         assert false with TypeError msg ->  Printf.printf "Caught unbound type: %s\n" msg;
     print_string "Edge Cases PASSED.\n"
 
+let test_lambda_totality () =
+    let env = [("Nat", nat_def)] in
+    let ctx = empty_ctx in
+    let valid = Lam ("x", Inductive nat_def, Var "x") in
+    assert (match infer env ctx valid with | Pi (_, _, _) -> true | _ -> false);
+    try let _ = infer env ctx (Lam ("x", Inductive nat_def, App (Var "x", Constr (1, nat_def, [])))) in assert false
+    with TypeError msg -> Printf.printf "Caught non-total lambda: %s\n" msg;
+    print_string "Lambda Totality PASSED.\n"
+
 let test () =
     test_universe ();
     test_equal (); 
@@ -462,6 +497,7 @@ let test () =
     test_inductive_eta_full ();
     test_positivity ();
     test_edge_cases ();
+    test_lambda_totality ();
     let ctx : context = [] in
     let zero = Constr (1, nat_def, []) in
     let one = Constr (2, nat_def, [zero]) in

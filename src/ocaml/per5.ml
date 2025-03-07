@@ -67,6 +67,8 @@ and equal' env ctx t1 t2 =
     | App (f, arg), App (f', arg') -> equal' env ctx f f' && equal' env ctx arg arg'
     | Sigma (x, a, b), Sigma (y, a', b') -> equal' env ctx a a' && equal' env (add_var ctx x a) b (subst y (Var x) b')
     | Pair (a, b), Pair (a', b') -> equal' env ctx a a' && equal' env ctx b b'
+    | t, Pair (Fst t', Snd t'') when equal' env ctx t t' && equal' env ctx t t'' -> true
+    | Pair (Fst t', Snd t''), t when equal' env ctx t t' && equal' env ctx t t'' -> true
     | Fst t, Fst t' -> equal' env ctx t t'
     | Snd t, Snd t' -> equal' env ctx t t'
     | Id (ty, a, b), Id (ty', a', b') -> equal' env ctx ty ty' && equal' env ctx a a' && equal' env ctx b b'
@@ -95,8 +97,7 @@ and pos x t =
     | Inductive d -> List.exists (fun (_, ty) -> pos x ty) d.constrs
     | Constr (_, _, args) -> List.exists (pos x) args
     | Ind (_, p, cases, t') -> pos x p || List.exists (pos x) cases || pos x t'
-    | J (ty, a, b, c, d, p) -> pos x ty || pos x a || pos x b || 
-                               pos x c || pos x d || pos x p
+    | J (ty, a, b, c, d, p) -> pos x ty || pos x a || pos x b || pos x c || pos x d || pos x p
 
 and is_positive env ctx ty ind_name =
     match ty with
@@ -484,11 +485,20 @@ let test_lambda_totality () =
     with TypeError msg -> Printf.printf "Caught non-total lambda: %s\n" msg;
     print_string "Lambda Totality PASSED.\n"
 
+let test_sigma_eta () =
+    let ctx = [("p", Sigma ("x", nat_ind, nat_ind))] in
+    let env = [("Nat", nat_def)] in
+    let t1 = Var "p" in
+    let t2 = Pair (Fst (Var "p"), Snd (Var "p")) in
+    assert (equal env ctx t1 t2);
+    Printf.printf "Sigma Eta-expansion PASSED.\n"
+
 let test () =
     test_universe ();
     test_equal (); 
     test_equality_theorems ();
     test_eta ();
+    test_sigma_eta ();
     test_inductive_eta ();
     test_inductive_eta_full ();
     test_positivity ();

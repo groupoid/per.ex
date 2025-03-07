@@ -3,7 +3,7 @@
 (* TYPE CHECKER CORE LANGUAGE *)
 
 let trace: bool = false
-let tests: bool = false
+let tests: bool = true
 
 type level = int
 type name = string
@@ -25,12 +25,6 @@ let empty_ctx : context = []
 let add_var ctx x ty = (x, ty) :: ctx
 
 exception TypeError of string
-
-let lookup_var ctx x =
-    if (trace) then (Printf.printf "Looking up %s in context: [" x;
-                 (*  List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx; *)
-                     print_endline "]");
-    try Some (List.assoc x ctx) with Not_found -> None
 
 let rec subst_many m t =
     match t with
@@ -56,6 +50,12 @@ let rec equal env ctx t1' t2' =
     let t1 = normalize env ctx t1' in
     let t2 = normalize env ctx t2' in
     equal' env ctx t1 t2
+
+and lookup_var ctx x =
+    if (trace) then (Printf.printf "Looking up %s in context: [" x;
+                     List.iter (fun (n, ty) -> Printf.printf "(%s, " n; print_term ty; print_string "); ") ctx;
+                     print_endline "]");
+    try Some (List.assoc x ctx) with Not_found -> None
 
 and equal' env ctx t1 t2 =
     match t1, t2 with
@@ -344,40 +344,42 @@ let node n l r = Constr (2, tree_def (Universe 0), [n; l; r])      (* Node *)
 let leaf = Constr (1, tree_def (Universe 0), [])
 let sample_tree = node (Constr (1, nat_def, [])) leaf leaf  (* Node(zero, Leaf, Leaf) *)
 
-let env = [("Empty", empty_def); ("Nat", nat_def); ("List", list_def (Universe 0)); ("Tree", tree_def (Inductive nat_def))]
+let env = [("Empty", empty_def);
+           ("Nat", nat_def);
+           ("List", list_def (Universe 0));
+           ("Tree", tree_def (Inductive nat_def))]
 
 let list_length =
-  Lam ("l", list_ind,  (* l : List Type0 *)
-    Ind ((list_def (Universe 0)),
+    Lam ("l", list_ind,  (* l : List Type0 *)
+      Ind ((list_def (Universe 0)),
           Pi ("_", list_ind, nat_ind),
-          [Constr (1, nat_def, []);  (* nil -> zero *)
-           Lam ("x", Universe 0,  (* x : Type0 *)
-             Lam ("xs", list_ind,  (* xs : List Type0 *)
-               Lam ("ih", nat_ind,  (* ih : Nat *)
-                 Constr (2, nat_def, [Var "ih"]))))], (* succ ih *)
+          [ Constr (1, nat_def, []); (* nil -> zero *)
+            Lam ("x", Universe 0,    (* x  : Type0 *)
+              Lam ("xs", list_ind,   (* xs : List Type0 *)
+                Lam ("ih", nat_ind,  (* ih : Nat *)
+                  Constr (2, nat_def, [Var "ih"]))))], (* succ ih *)
           Var "l"))
 
 let sample_list =
-  Constr (2, list_def (Universe 0),  (* cons *)
-    [Constr (1, nat_def, []);        (* zero *)
-     Constr (2, list_def (Universe 0),  (* cons *)
-       [Constr (2, nat_def, [Constr (1, nat_def, [])]);  (* succ zero *)
-        Constr (1, list_def (Universe 0), [])])])         (* nil *)
+    Constr (2, list_def (Universe 0),  (* cons *)
+      [Constr (1, nat_def, []);        (* zero *)
+       Constr (2, list_def (Universe 0),  (* cons *)
+         [Constr (2, nat_def, [Constr (1, nat_def, [])]);  (* succ zero *)
+          Constr (1, list_def (Universe 0), [])])])         (* nil *)
 
-let plus =
-  Lam ("m", nat_ind, Lam ("n", nat_ind,
-    Ind (nat_def,
-          Pi ("_", nat_ind, nat_ind),
-          [Var "m"; Lam ("k", nat_ind, Lam ("ih", nat_ind, Constr (2, nat_def, [Var "ih"])))],
-          Var "n")))
+let plus = Lam ("m", nat_ind, Lam ("n", nat_ind,
+           Ind (nat_def,
+                Pi ("_", nat_ind, nat_ind),
+                [Var "m"; Lam ("k", nat_ind, Lam ("ih", nat_ind, Constr (2, nat_def, [Var "ih"])))],
+                Var "n")))
 
 let plus_ty = Pi ("m", nat_ind, Pi ("n", nat_ind, nat_ind))
 
 let nat_elim =
     Ind (nat_def,
-          Pi ("x", nat_ind, Universe 0),
-          [Inductive nat_def; Lam ("n", nat_ind, Lam ("ih", Universe 0, Var "ih"))],
-          Constr (1, nat_def, []))
+         Pi ("x", nat_ind, Universe 0),
+         [Inductive nat_def; Lam ("n", nat_ind, Lam ("ih", Universe 0, Var "ih"))],
+         Constr (1, nat_def, []))
 
 let succ = Lam ("n", nat_ind, Constr (2, nat_def, [Var "n"]))
 
@@ -519,6 +521,7 @@ let test_basic_setup () =
     let zero = Constr (1, nat_def, []) in
     let one = Constr (2, nat_def, [zero]) in
     let two = Constr (2, nat_def, [one]) in
+    let len = App (list_length, sample_list) in
     let add_term = App (App (plus, two), two) in
     let pair_term = Pair (zero, one) in
     let pair_ty = Sigma ("x", nat_ind, nat_ind) in
@@ -527,37 +530,28 @@ let test_basic_setup () =
     let id_term = Refl zero in
     let id_ty = Id (nat_ind, zero, zero) in
     let absurd = Lam ("e", empty_ind, Ind (empty_def, Pi ("_", empty_ind, Inductive nat_def), [], Var "e")) in
-    let sym_term = normalize env ctx (App (App (App (id_symmetry, zero), zero), Refl zero)) in
+    let sym_term = App (App (App (id_symmetry, zero), zero), Refl zero) in
     let trans_term = App (App (App (App (App (id_transitivity, zero), zero), zero), Refl zero), Refl zero) in
-    let fst_ty = infer env ctx fst_term in
-    let snd_ty = infer env ctx snd_term in
-    let sym_ty = infer env ctx sym_term in
-    let trans_ty = infer env ctx trans_term in
-    let trans_norm = normalize env ctx trans_term in
-    let subst_norm = normalize env ctx subst_eq in
-    let add_normal = normalize env ctx add_term in
-    let len_normal = normalize env ctx (App (list_length, sample_list)) in
-    let bottom = normalize env ctx absurd in
     begin try check env ctx pair_term pair_ty; check env ctx id_term id_ty with TypeError msg -> print_endline ("Type error: " ^ msg) end;
-    if tests then begin
-        Printf.printf "eval absurd = "; print_term bottom; print_endline "";
+    begin
+        Printf.printf "eval absurd = "; print_term (normalize env ctx absurd); print_endline "";
         Printf.printf "eval Tree.leaf = "; print_term leaf; print_endline "";
-        Printf.printf "eval Nat.add(2,2) = "; print_term add_normal; print_endline "";
-        Printf.printf "eval List.length(list) = "; print_term len_normal; print_endline "";
+        Printf.printf "eval Nat.add(2,2) = "; print_term (normalize env ctx add_term); print_endline "";
+        Printf.printf "eval List.length(list) = "; print_term (normalize env ctx len); print_endline "";
         Printf.printf "Nat.Ind = "; print_term nat_elim; print_endline "";
         Printf.printf "Nat.succ : "; print_term (infer env ctx succ); print_endline "";
         Printf.printf "Nat.plus : "; print_term (infer env ctx plus); print_endline "";
         Printf.printf "Nat.Ind : "; print_term (infer env ctx nat_elim); print_endline "";
         Printf.printf "Sigma.pair = "; print_term pair_term; print_endline "";
-        Printf.printf "Sigma.fst(Sigma.pair) : "; print_term fst_ty; print_endline "";
-        Printf.printf "Sigma.snd(Sigma.pair) : "; print_term snd_ty; print_endline "";
-        Printf.printf "id_symmetry : "; print_term sym_ty; print_endline "";
+        Printf.printf "Sigma.fst(Sigma.pair) : "; print_term (infer env ctx fst_term); print_endline "";
+        Printf.printf "Sigma.snd(Sigma.pair) : "; print_term (infer env ctx snd_term); print_endline "";
+        Printf.printf "id_symmetry : "; print_term (infer env ctx sym_term); print_endline "";
         Printf.printf "eval id_symmetry = "; print_term sym_term; print_endline ""; 
-        Printf.printf "id_term : id_ty\n";
-        Printf.printf "eval tran_term = "; print_term trans_norm; print_endline "";
-        Printf.printf "eval subst_eq = "; print_term subst_norm; print_endline "";
-        Printf.printf "id_transitivity : "; print_term trans_ty; print_endline "";
-        print_endline "REALITY CHECK PASSED"
+        Printf.printf "Id.Refl Nat.1 : Id Nat Nat\n";
+        Printf.printf "eval tran_term = "; print_term (normalize env ctx trans_term); print_endline "";
+        Printf.printf "eval subst_eq = "; print_term (normalize env ctx subst_eq); print_endline "";
+        Printf.printf "id_transitivity : "; print_term (infer env ctx trans_term); print_endline "";
+        print_endline "REALITY CHECK PASSED\n"
     end
   
 let test () =
@@ -708,26 +702,21 @@ let rec console_loop env state =
   )
 
 let main () =
-  let nat =
-      Inductive { name = "Nat"; params = []; level = 0;
-                  constrs = [(1, Universe 0);
-                             (2, Pi ("n", Inductive { name = "Nat";
-                                                      params = [];
-                                                      level = 0;
-                                                      constrs = []}, Universe 0))] } in
-  let env = [("Nat", nat)] in
-  let target = Pi ("n", Inductive nat_def, Inductive nat_def) in (* Example: ∀n : Nat, Nat *)
-  Printf.printf "Starting proof for: "; print_term target; print_endline "";
-  let state = initial_state target in
-  ignore (console_loop env state)
+    let nat = Inductive { name = "Nat"; params = []; level = 0;
+        constrs = [(1, Universe 0);
+                   (2, Pi ("n", Inductive { name = "Nat"; params = []; level = 0; constrs = []}, Universe 0))] } in
+    let env = [("Nat", nat)] in
+    let target = Pi ("n", Inductive nat_def, Inductive nat_def) in
+    Printf.printf "Starting proof for: "; print_term target; print_endline "";
+    let state = initial_state target in
+    ignore (console_loop env state)
 
-let help =
+let banner =
 "https://per.groupoid.space/
 
-  🧊 MLTT/CIC Theorem Prover version 0.5 (c) 2025 Groupoїd Infinity"
+  🧊 MLTT/CIC Theorem Prover version 0.5 (c) 2025 Groupoїd Infinity
 
-let () = 
-  test ();
-  print_endline ("\n" ^ help ^ "\n\nFor help type `help`.\n");
-  main ()
+For help type `help`."
+
+let () = if (tests) then test (); print_endline banner; main ()
 

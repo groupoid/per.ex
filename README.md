@@ -5,54 +5,29 @@ Per Martin-Löf: Calculus of Inductive Constructions
 
 ## Abstract
 
-This article presents an implementation of a dependently-typed
-lambda calculus with inductive types in OCaml, drawing inspiration
-from Martin-Löf’s Intuitionistic Type Theory (ITT) [1] and the
-Calculus of Inductive Constructions (CIC) [2]. The system supports
-type inference, type checking, reduction, and normalization, with
-a focus on natural numbers (Nat) and lists (List) as example
-inductive types. Below, we provide a detailed teardown of each
-core function, grounded in formal theorems and referencing
-seminal works, followed by technical insights into their design
-and implementation.
-
-The implementation realizes a fragment of CIC,
-balancing expressiveness and decidability. The type system
-enforces universe consistency (via `check_universe`) and dependent
-elimination (via `check_elim`), ensuring soundness as per Martin-Löf’s
-formation, introduction, and elimination rules [1]. Substitution and
-reduction handle α-equivalence implicitly, trading off formal rigor
-for simplicity, while `infer` and `check` form a bidirectional core,
-optimizing type inference (O(n) in term size, assuming small contexts).
-Inductive types, inspired by Coquand’s work [2], support recursion
-through `Elim`, with apply_case encoding the induction principle via recursive calls.
-The lack of full cumulativity (e.g., `Type i <: Type (i + 1)`)
-and weak equality (no η-expansion) limits expressiveness compared
-to Coq, but the system proves `Nat.plus : Nat -> Nat -> Nat` and
-`Nat.elim : Π(x:Nat).Type0`, demonstrating practical utility.
-Debugging prints, while verbose, expose the system’s reasoning,
-aligning with Pierce’s emphasis on transparency in type checkers [4].
+This work presents a type checker implemented in OCaml, designed
+as a minimal core for a dependently-typed lambda calculus.
+The system adheres to strict constraints: no pattern matching,
+no let-bindings, no implicit arguments, no modules or namespaces,
+and no function extensionality. It supports universes, dependent
+products (Pi), dependent pairs (Sigma), identity types (Id), and
+inductive types with strict positivity enforcement. We enumerate
+and analyze its mathematical properties, focusing on correctness,
+soundness, totality, and related attributes relevant to formal
+mathematics.
 
 ## Intro
 
-The system defines terms `term`, inductive types `inductive`,
-environments `env`, and contexts `context` to represent
-a dependent type theory. These structures align with the
-formal syntax of CIC, as described by Coquand and Huet [2].
+The type checker operates over a term syntax comprising:
 
-### Types
+* `Universe i`: Type universes with level i ∈ ℕ.
+* `Pi (x, A, B)`: Dependent function types, where `A : Universe i` and `B : Universe j` under `x : A`. `Lam (x, A, t)`: Lambda abstraction. `App (f, a)`: Function application.
+* `Sigma (x, A, B)`: Dependent pair types. `Pair (a, b)`, `Fst p`, `Snd p: Pair` construction and projections.
+* `Id (A, a, b)`: Identity type, with `Refl` a and `J` eliminator.
+* `Inductive d`: Inductive types with constructors `Constr (j, d, args)` and eliminator `Ind`.
 
-* `term`: Includes variables, universes, Pi types, lambda abstractions,
-  applications, Sigma types, pairs, identity types, inductive types,
-  constructors, and eliminators.
-* `inductive`: Captures parameterized inductive definitions with constructors and mutual recursion groups.
-* `env` and `context`: Store global inductive definitions and local variable bindings, respectively.
-
-**Technical Insight**: The term type encodes a pure type system (PTS)
-extended with inductive constructs, supporting full
-dependent types (e.g., Pi and Sigma). The inductive record mirrors
-CIC’s inductive schemas, allowing parameterized types like List A,
-while mutual_group hints at potential mutual recursion, though not fully exploited here.
+The typing judgment `Γ ⊢ t : T` is defined via infer and check functions,
+with definitional equality `Γ ⊢ t = t'` implemented via normalization (reduce).
 
 ## Syntax
 

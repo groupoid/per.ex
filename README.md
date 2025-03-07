@@ -256,8 +256,9 @@ ormal form under β- and ι-reductions.
 Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-theorems for Classical MLTT with General Inductive Types, drawing from CIC’s lineage:
 
 * **Soundness and Completeness**: Per’s type checker is sound—every term it accepts has a type under MLTT’s rules [Paulin-Mohring, 1996].
-  Completeness holds relative to our bidirectional algorithm: if a term is well-typed in MLTT, Per can infer or check it,
-  assuming proper context management [Harper & Licata, 2007]. Our infer and check duo ensures this duality.
+  This ensures that every term accepted by Per is typable in the underlying theory.
+  Relative to the bidirectional type checking algorithm, context is appropriately managed [Harper & Licata, 2007].
+  The interplay of inference and checking modes guarantees this property.
 * **Canonicity, Normalization, and Totality**: Canonicity guarantees that every closed term of type `Nat` normalizes
   to `zero` or `succ n` [Martin-Löf, 1984]. Per’s normalize achieves strong normalization—every term reduces to a
   unique normal form—thanks to CIC’s strict positivity [Coquand & Paulin-Mohring, 1990]. Totality follows: all
@@ -269,22 +270,25 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
   types without altering propositional truths [Pfenning & Paulin-Mohring, 1989]. Inductive types like Nat satisfy
   initiality—every algebra morphism from Nat to another structure is uniquely defined—ensuring categorical universality [Dybjer, 1997].
 
-### Corectness
-
-* Definition: Typing rules conform to a minimal intensional dependent type theory.
-* Formal Statement: For all `t, Γ, Δ`, if `infer Δ Γ t = T`, then `Γ ⊢ t : T` under rules including: 1) `Γ ⊢ Lam (x, A, t) : Pi (x, A, B)`
-  if `Γ ⊢ A : Universe i`, `Γ, x : A ⊢ t : B`, and `t` contains a positive occurrence of `x`; 2) Other rules (e.g., `Pi`, `Id`, `Inductive`)
-  align with standard formulations.
-* Verification: eqality checking enforced by tests to confirm rule adherence.
-* Status: Fully correct, with lambda totality integrated.
-
 ### Soundness
 
 * Definition: Type preservation and logical consistency hold.
-* Formal Statement: 1) If `Γ ⊢ t : T` and `reduce t = t'`, then `Γ ⊢ t' : T`;
+* Formal Statement: 1) If `Γ ⊢ t : T` and `infer t = t'`, then `Γ ⊢ t' : T`;
   2) No `t` exists such that `Γ ⊢ t : Id (Universe 0, Universe 0, Universe 1)`.
 * Proof: Preservation via terminating reduce; consistency via positivity and intensionality.
 * Status: Sound, inforced by rejecting non-total lambdas.
+
+### Completeness
+
+* Definition: The type checker captures all well-typed terms of MLTT within its bidirectional framework.
+* Formal Statement: If `Γ ⊢ 𝑡 : T`, then `infer Δ Γ 𝑡 = T` or `check Δ Γ 𝑡 T` holds under suitable `Δ`.
+* Status: Complete relative to the implemented algorithm.
+
+### Canonicity
+
+* Definition: Reduction reaches a normal form; equality is decidable.
+* Formal Statement: `equal Δ Γ t t'` terminates, reflecting normalize’s partial eta and beta reductions in `normnalize`.
+* Status: Satisfied within the scope of implemented reductions.
 
 ### Totality
 
@@ -294,17 +298,16 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
   3) For `Lam (x, A, t) : Pi (x, A, B)`, `reduce (App (Lam (x, A, t), a))` terminates for all `a : A`;
   4) `normalize Δ Γ t` terminates.
 
-### Canonicity
+### Consistency
 
-* Definition: Reduction reaches a normal form; equality is decidable.
-* Formal Statement: `equal Δ Γ t t'` terminates, reflecting normalize’s partial eta and beta reductions.
-* Status: Complete within a scope.
+The system is logically consistent, meaning no term `t` exists such that `Γ ⊢ t : ⊥`.
+This is upheld by normalization and the absence of paradoxes such as Girard's [Girard, 1972].
 
 ### Decidability
 
 * Definition: Type checking and equality are computable.
 * Formal Statement: `infer` and `check` terminate with a type or `TypeError`.
-* Status: Decidable, enhanced by lambda totality check.
+* Status: Decidable, enhanced by termination checks on lambda expressions.
 
 ## Game Console
 

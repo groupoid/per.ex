@@ -81,20 +81,17 @@ and is_lam = function | Lam _ -> true | Pi _ -> true | _ -> false
 
 and is_positive env ctx ty ind_name =
     match ty with
-    | Var x -> true
-    | Universe _ -> true
     | Pi (x, a, b) -> 
-        let rec has_negative ty' =
+        let rec neg ty' =
           match ty' with
-          | Inductive d when d.name = ind_name -> true  (* Direct occurrence is not negative *)
+          | Inductive d when d.name = ind_name -> true (* Direct occurrence is not negative *)
           | Pi (x', a', b') -> 
               (match a' with
-               | Inductive d when d.name = ind_name -> true  (* Direct is fine *)
-               | _ -> has_negative a') || has_negative b'
+               | Inductive d when d.name = ind_name -> true (* Direct is fine *)
+               | _ -> neg a') || neg b'
           | _ -> false
-        in not (has_negative a) && is_positive env (add_var ctx x a) b ind_name
-    | Inductive d when d.name = ind_name -> true  (* Positive in return position *)
-    | Inductive d -> true
+        in not (neg a) && is_positive env (add_var ctx x a) b ind_name
+    | Inductive d when d.name = ind_name -> true (* Positive in return position *)
     | _ -> true
 
 and infer env ctx t =

@@ -5,7 +5,7 @@ Per Martin-Löf: Calculus of Inductive Constructions
 
 ## Abstract
 
-This work presents a type checker implemented in OCaml, designed
+This work presents a MLTT/CIC type checker implemented in OCaml, designed
 as a minimal core for a dependently-typed lambda calculus.
 The system adheres to strict constraints: no pattern matching,
 no let-bindings, no implicit arguments, no modules or namespaces,

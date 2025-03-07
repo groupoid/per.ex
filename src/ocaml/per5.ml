@@ -311,16 +311,36 @@ let nat_def = {
 }
 
 let list_def (a : term) = {
-  name = "List"; params = [("A", a)]; level = (match a with Universe i -> i | _ -> failwith "List param must be a type");
+  name = "List"; params = [("A", a)]; level = 0;
   constrs = [
     (1, Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = [] }); (* nil *)
     (2, Pi ("x", a, Pi ("xs", Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = [] },
                         Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = [] }))) (* cons *) ]
 }
 
-let env = [("Nat", nat_def); ("List", list_def (Universe 0))]
+let tree_def a = {
+  name = "Tree";
+  params = [("A", a)];  (* A is a term, e.g., Universe 0 *)
+  level = 0;
+  constrs = [
+    (1, Inductive { name = "Tree"; params = [("A", a)]; level = 0; constrs = [] });  (* Leaf *)
+    (2, Pi ("x", a,  (* Use 'a' directly instead of Var "A" *)
+           Pi ("l", Inductive { name = "Tree"; params = [("A", a)]; level = 0; constrs = [] },
+               Pi ("r", Inductive { name = "Tree"; params = [("A", a)]; level = 0; constrs = [] },
+                   Inductive { name = "Tree"; params = [("A", a)]; level = 0; constrs = [] }))))
+  ]
+}
+
+let node n l r = Constr (2, tree_def (Universe 0), [n; l; r])      (* Node *)
+let leaf = Constr (1, tree_def (Universe 0), [])
+let sample_tree = node (Constr (1, nat_def, [])) leaf leaf  (* Node(zero, Leaf, Leaf) *)
+let tree_def_inst = tree_def (Inductive nat_def)  (* Instantiate with Nat *)
+let tree_ind = Inductive tree_def_inst
 let nat_ind = Inductive nat_def
 let list_ind = Inductive (list_def (Universe 0))
+let leaf = Constr (1, tree_def (Universe 0), [Inductive nat_def ])  (* Leaf *)
+
+let env = [("Nat", nat_def); ("List", list_def (Universe 0)); ("Tree", tree_def_inst)]
 
 let list_length =
   Lam ("l", list_ind,  (* l : List Type0 *)
@@ -531,6 +551,7 @@ let test () =
         let subst_norm = normalize env ctx subst_eq in
         let add_normal = normalize env ctx add_term in
         let len_normal = normalize env ctx (App (list_length, sample_list)) in
+        Printf.printf "eval Tree.leaf = "; print_term leaf; print_endline "";
         Printf.printf "eval Nat.add(2,2) = "; print_term add_normal; print_endline "";
         Printf.printf "eval List.length(list) = "; print_term len_normal; print_endline "";
         Printf.printf "Nat.Ind = "; print_term nat_elim; print_endline "";

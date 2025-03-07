@@ -1,6 +1,8 @@
 Per Martin-Löf: Calculus of Inductive Constructions
 ===================================================
 
+<img src="https://per.groupoid.space/img/per.jpg">
+
 ## Abstract
 
 This article presents an implementation of a dependently-typed

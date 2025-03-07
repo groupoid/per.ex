@@ -643,14 +643,7 @@ let main () =
 let help =
 "https://per.groupoid.space/
 
-  MLTT/CIC Theorem Prover version 0.4 (c) 2025 Groupoїd Infinity
-
-> intro z
-> elim z
-> intro p
-> exact (fst p)
-> intro x
-> assumption"
+  🧊 MLTT/CIC Theorem Prover version 0.4 (c) 2025 Groupoїd Infinity"
 
 let () = 
   test ();

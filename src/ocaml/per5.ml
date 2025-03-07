@@ -104,7 +104,6 @@ and infer env ctx t =
         in check_return ty
       ) d.constrs;
       Universe d.level
-(*    | Inductive d -> List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params; Universe d.level *)
     | Constr (j, d, args) -> let cj = List.assoc j d.constrs in let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in infer_ctor env ctx cj_subst args
     | Ind (d, p, cases, t') -> infer_Ind env ctx d p cases t'
     | J (ty, a, b, c, d, p) -> infer_J env ctx ty a b c d p in normalize env ctx res

@@ -12,7 +12,7 @@ Recent refinements ensure totality for user-defined lambda terms via a positive 
 Its mathematical properties, focusing on correctness, soundness, totality, canonicity, decidability and related
 attributes relevant to formal mathematics are being analyzed.
 
-## Intro
+## Introduction
 
 The type checker operates over a term syntax comprising:
 
@@ -275,7 +275,7 @@ This function implements strong normalization, a cornerstone of ITT [1] and CIC 
 Section 4.6, Strong Normalization via CoC). Every well-typed term in the system has a
 ormal form under β- and ι-reductions.
 
-## Properties
+## Conclusion
 
 Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-theorems for Classical MLTT with General Inductive Types, drawing from CIC’s lineage:
 

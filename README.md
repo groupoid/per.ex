@@ -161,6 +161,30 @@ the argument types of `c_j` (including recursive hypotheses), then `ctx ⊢ Elim
 
 ### Infer Equality Induction `infer_J env ctx ty a b c d p`
 
+Ensuring `J (ty, a, b, c, d, p)` has type `c a b p by` validating the motive,
+base case, and path against CIC’s equality elimination rule.
+
+The `infer_J` function implements the dependent elimination rule for identity
+types in the Calculus of Inductive Constructions (CIC), enabling proofs and
+computations over equality (e.g., `symmetry : Π a b : ty, Π p : Id (ty, a, b), Id(ty, b, a)`).
+It type-checks the term `J (ty, a, b, c, d, p)` by ensuring 
+`ty : Universe 0` is the underlying type, `a : ty` and `b : ty` are endpoints,
+`c : Π (x:ty), Π (y:ty), Π (p: Id(ty, x, y)), Type0` is a motive over all paths,
+`d : Π (x:ty), c x x (Refl x)` handles the reflexive case,
+and `p : Id(ty, a, b)` is the path being eliminated.
+The function constructs fresh variables to define the motive
+and base case types, checks each component, and returns `c a b p` (normalized),
+reflecting the result of applying the motive to the specific path. With O(n)
+complexity (where n is the term size) due to substitution and equality checks,
+it leverages trace prints (via print_J) for debugging, essential for tracing
+dependent type errors that ripple through equality reasoning.
+
+**Theorem**. For an environment `env` and context `ctx`, given a type `A : Type_i`,
+terms `a : A`, `b : A`, a motive `C : Π (x:A), Π (y:A), Π(p:Id(A, x, y)),Type_j`,
+a base case `d : Π(x:A), C x x (Refl x)`, and a path `p : Id(A, a, b)`, the
+term `J (A, a, b, C, d, p)` is well-typed with type `C a b p`. (Reference:
+CIC [8], Section 4.5; [1], Identity Type Elimination Rule).
+
 ### Type Inference `infer env ctx t`
 
 Infer the type of term `t` in context `ctx` and environment `env`.

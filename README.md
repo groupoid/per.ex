@@ -304,7 +304,7 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
 ### Decidability
 
 * Definition: Type checking and equality are computable.
-* Formal Statement: `infer and `check` terminate with a type or `TypeError`.
+* Formal Statement: `infer` and `check` terminate with a type or `TypeError`.
 * Status: Decidable, enhanced by lambda totality check.
 
 ## Game Console

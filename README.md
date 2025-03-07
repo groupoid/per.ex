@@ -285,7 +285,7 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
 * Formal Statement: 1) If `Γ ⊢ t : T` and `reduce t = t'`, then `Γ ⊢ t' : T`;
   2) No `t` exists such that `Γ ⊢ t : Id (Universe 0, Universe 0, Universe 1)`.
 * Proof: Preservation via terminating reduce; consistency via positivity and intensionality.
-* Status: Sound, reinforced by rejecting non-total lambdas.
+* Status: Sound, inforced by rejecting non-total lambdas.
 
 ### Totality
 

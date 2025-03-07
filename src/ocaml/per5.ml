@@ -61,51 +61,22 @@ and equal' env ctx t1 t2 =
     match t1, t2 with
     | Var x, Var y -> x = y
     | Universe i, Universe j -> i = j
-    | Pi (x, a, b), Pi (y, a', b') ->
-        equal' env ctx a a' &&
-        equal' env (add_var ctx x a) b (subst y (Var x) b')
-    | Lam (x, d, b), Lam (y, d', b') ->
-        equal' env ctx d d' &&
-        equal' env (add_var ctx x d) b (subst y (Var x) b')
+    | Pi (x, a, b), Pi (y, a', b') -> equal' env ctx a a' && equal' env (add_var ctx x a) b (subst y (Var x) b')
+    | Lam (x, d, b), Lam (y, d', b') -> equal' env ctx d d' && equal' env (add_var ctx x d) b (subst y (Var x) b')
     (* Eta-expansion: λx.b = t if b = t x *)
-    | Lam (x, d, b), t when not (is_lam t) ->
-        let x_var = Var x in
-        equal' env ctx b (App (t, x_var)) &&
-        (match infer env ctx t with
-         | Pi (y, a, b') -> equal' env ctx d a
-         | _ -> false)
-    | t, Lam (x, d, b) when not (is_lam t) ->
-        let x_var = Var x in
-        equal' env ctx (App (t, x_var)) b &&
-        (match infer env ctx t with
-         | Pi (y, a, b') -> equal' env ctx a d
-         | _ -> false)
-    | App (f, arg), App (f', arg') ->
-        equal' env ctx f f' && equal' env ctx arg arg'
-    | Sigma (x, a, b), Sigma (y, a', b') ->
-        equal' env ctx a a' &&
-        equal' env (add_var ctx x a) b (subst y (Var x) b')
-    | Pair (a, b), Pair (a', b') ->
-        equal' env ctx a a' && equal' env ctx b b'
+    | Lam (x, d, b), t when not (is_lam t) -> let x_var = Var x in equal' env ctx b (App (t, x_var)) && (match infer env ctx t with | Pi (y, a, b') -> equal' env ctx d a | _ -> false)
+    | t, Lam (x, d, b) when not (is_lam t) -> let x_var = Var x in equal' env ctx (App (t, x_var)) b && (match infer env ctx t with | Pi (y, a, b') -> equal' env ctx a d | _ -> false)
+    | App (f, arg), App (f', arg') -> equal' env ctx f f' && equal' env ctx arg arg'
+    | Sigma (x, a, b), Sigma (y, a', b') -> equal' env ctx a a' && equal' env (add_var ctx x a) b (subst y (Var x) b')
+    | Pair (a, b), Pair (a', b') -> equal' env ctx a a' && equal' env ctx b b'
     | Fst t, Fst t' -> equal' env ctx t t'
     | Snd t, Snd t' -> equal' env ctx t t'
-    | Id (ty, a, b), Id (ty', a', b') ->
-        equal' env ctx ty ty' &&
-        equal' env ctx a a' && equal' env ctx b b'
+    | Id (ty, a, b), Id (ty', a', b') -> equal' env ctx ty ty' && equal' env ctx a a' && equal' env ctx b b'
     | Refl t, Refl t' -> equal' env ctx t t'
-    | Inductive d1, Inductive d2 ->
-        d1.name = d2.name && d1.level = d2.level &&
-        List.for_all2 (fun (n1, t1) (n2, t2) -> n1 = n2 && equal' env ctx t1 t2) d1.params d2.params
-    | Constr (j, d1, args1), Constr (k, d2, args2) ->
-        j = k && d1.name = d2.name && List.for_all2 (equal' env ctx) args1 args2
-    | Ind (d1, p1, cases1, t1), Ind (d2, p2, cases2, t2) ->
-        d1.name = d2.name && equal' env ctx p1 p2 &&
-        List.for_all2 (equal' env ctx) cases1 cases2 &&
-        equal' env ctx t1 t2
-    | J (ty, a, b, c, d, p), J (ty', a', b', c', d', p') ->
-        equal' env ctx ty ty' && equal' env ctx a a' &&
-        equal' env ctx b b' && equal' env ctx c c' &&
-        equal' env ctx d d' && equal' env ctx p p'
+    | Inductive d1, Inductive d2 -> d1.name = d2.name && d1.level = d2.level && List.for_all2 (fun (n1, t1) (n2, t2) -> n1 = n2 && equal' env ctx t1 t2) d1.params d2.params
+    | Constr (j, d1, args1), Constr (k, d2, args2) -> j = k && d1.name = d2.name && List.for_all2 (equal' env ctx) args1 args2
+    | Ind (d1, p1, cases1, t1), Ind (d2, p2, cases2, t2) -> d1.name = d2.name && equal' env ctx p1 p2 && List.for_all2 (equal' env ctx) cases1 cases2 && equal' env ctx t1 t2
+    | J (ty, a, b, c, d, p), J (ty', a', b', c', d', p') -> equal' env ctx ty ty' && equal' env ctx a a' && equal' env ctx b b' && equal' env ctx c c' && equal' env ctx d d' && equal' env ctx p p'
     | _ -> t1 = t2
 
 and is_lam = function Lam _ -> true | _ -> false
@@ -216,34 +187,11 @@ and check env ctx t ty =
           in raise (TypeError error))
 
 and apply_case env ctx d p cases case ty args =
-    if (trace) then (Printf.printf "Applying case: "; print_term case; Printf.printf " to type: "; print_term ty; Printf.printf " with args: [";
-                     List.iter (fun arg -> print_term arg; print_string "; ") args;
-                     print_endline "]");
-    let rec apply ty args_acc remaining_args =
-    match ty, remaining_args with
-    | Pi (x, a, b), arg :: rest ->
-        let b' = subst x arg b in
-        let rec_arg =
-          if equal env ctx a (Inductive d) then
-            match arg with
-            | Constr (j, d', sub_args) when d.name = d'.name ->
-                let reduced = reduce env ctx (Ind (d, p, cases, arg)) in
-                if (trace) then (Printf.printf "Recursive arg for %s: " x; print_term reduced; print_endline "");
-                Some reduced
-            | _ -> None
-          else None
-        in
-        let new_args_acc = match rec_arg with | Some r -> r :: arg :: args_acc | None -> arg :: args_acc in
-        apply b' new_args_acc rest
-    | Pi (_, _, b), [] -> apply b args_acc []  (* Handle missing args by skipping to codomain *)
-    | _, [] ->
-        let rec apply_term t args =
-          match t, args with
-          | Lam (x, _, body), arg :: rest -> apply_term (subst x arg body) rest
-          | t, [] -> t
-          | _ -> raise (TypeError "Case application mismatch: too few arguments for lambda")
-        in apply_term case (List.rev args_acc)
-    | _ -> raise (TypeError "Constructor argument mismatch")
+    let rec apply ty args_acc remaining_args = match ty, remaining_args with
+      | Pi (x, a, b), arg :: rest -> let b' = subst x arg b in apply b' (arg :: args_acc) rest
+      | Pi (_, _, b), [] -> apply b args_acc []
+      | _, [] -> let rec app t = function | a :: rest -> app (subst "_dummy" a t) rest | [] -> t in app case (List.rev args_acc)
+      | _ -> raise (TypeError "Argument mismatch")
     in apply ty [] args
 
 and reduce env ctx t =

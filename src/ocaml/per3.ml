@@ -395,7 +395,7 @@ let test () =
       let sym_ty = infer env ctx sym_term in
       let _ = check env ctx id_term id_ty in
       let trans_ty = infer env ctx trans_term in
-(*      let trans_norm = normalize env ctx trans_term in *)
+      let trans_norm = normalize env ctx trans_term in 
       let subst_norm = normalize env ctx subst_eq in
       let add_normal = normalize env ctx add_term in
       let len_normal = normalize env ctx (App (list_length, sample_list)) in
@@ -412,7 +412,7 @@ let test () =
       Printf.printf "id_symmetry : "; print_term sym_ty; print_endline "";
       Printf.printf "eval id_symmetry = "; print_term sym_term; print_endline ""; 
       Printf.printf "id_term : id_ty\n";
-(*      Printf.printf "eval tran_term = "; print_term trans_norm; print_endline ""; *)
+      Printf.printf "eval tran_term = "; print_term trans_norm; print_endline "";
       Printf.printf "eval subst_eq = "; print_term subst_norm; print_endline "";
       Printf.printf "id_transitivity : "; print_term trans_ty; print_endline "";
 

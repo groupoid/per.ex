@@ -112,7 +112,6 @@ and infer env ctx t =
     | Refl a -> let a_ty = infer env ctx a in Id (a_ty, a, a)
     | Inductive d -> 
       List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params;
-      let d_applied = Inductive { d with constrs = [] } in
       let ind_name = d.name in
       List.iter (fun (j, ty) -> 
         let rec check_pos ty' =
@@ -569,27 +568,12 @@ let rec apply_tactic env state tac =
            | Inductive d ->
                let p = Var "P" in (* Motive placeholder *)
                let motive_ty = Pi ("x", Inductive d, Universe 0) in
-               let cases = List.map (fun (j, cj) ->
-                 let rec count_pis ty n =
-                   match ty with
-                   | Pi (x, a, b) -> count_pis b (n + 1)
-                   | _ -> n
-                 in
-                 let arity = count_pis cj 0 in
-                 let rec gen_lam n =
-                   if n = 0 then Var ("case_" ^ string_of_int j)
-                   else Lam ("x" ^ string_of_int n, Universe 0, gen_lam (n - 1))
-                 in gen_lam arity
-               ) d.constrs in
-               let new_term = Ind (d, p, cases, t) in
                let new_goal = { goal with target = App (p, t); id = next_id state } in
                let motive_goal = { ctx = goal.ctx; target = motive_ty; id = goal.id } in
                { state with goals = motive_goal :: new_goal :: rest }
            | Id (ty', a, b) ->
                let c = Var "C" in
                let motive_ty = Pi ("x", ty', Pi ("y", ty', Pi ("p", Id (ty', Var "x", Var "y"), Universe 0))) in
-               let d = Var "d" in
-               let new_term = J (ty', a, b, c, d, t) in
                let new_goal = { goal with target = App (App (App (c, a), b), t); id = next_id state } in
                let refl_goal = { ctx = goal.ctx; target = Pi ("x", ty', App (App (App (c, Var "x"), Var "x"), Refl (Var "x"))); id = next_id state + 1 } in
                let motive_goal = { ctx = goal.ctx; target = motive_ty; id = goal.id } in
@@ -600,18 +584,18 @@ let rec apply_tactic env state tac =
           (match ty with
            | Pi (x, a, b) ->
                if equal env goal.ctx a goal.target then
-                 { state with goals = rest; solved = (goal.id, t) :: state.solved }
+                 { goals = rest; solved = (goal.id, t) :: state.solved }
                else
                  let new_goal = { goal with target = a; id = next_id state } in
                  { state with goals = new_goal :: rest }
            | _ ->
                if equal env goal.ctx ty goal.target then
-                 { state with goals = rest; solved = (goal.id, t) :: state.solved }
+                 { goals = rest; solved = (goal.id, t) :: state.solved }
                else raise (TacticError "Apply type mismatch"))
       | Assumption ->
           (match List.find_opt (fun (_, ty) -> equal env goal.ctx ty goal.target) goal.ctx with
            | Some (n, _) ->
-               { state with goals = rest; solved = (goal.id, Var n) :: state.solved }
+               { goals = rest; solved = (goal.id, Var n) :: state.solved }
            | None -> raise (TacticError "No matching assumption"))
       | Auto ->
           let rec try_assumptions ctx =
@@ -623,11 +607,11 @@ let rec apply_tactic env state tac =
             | [] -> None
           in
           (match try_assumptions goal.ctx with
-           | Some t -> { state with goals = rest; solved = (goal.id, t) :: state.solved }
+           | Some t -> { goals = rest; solved = (goal.id, t) :: state.solved }
            | None -> state) (* Could extend with more automation *)
       | Exact t ->
           check env goal.ctx t goal.target;
-          { state with goals = rest; solved = (goal.id, t) :: state.solved }
+          { goals = rest; solved = (goal.id, t) :: state.solved }
 
 let parse_tactic input =
   let tokens = String.split_on_char ' ' (String.trim input) in
@@ -676,7 +660,7 @@ let main () =
 let help =
 "https://per.groupoid.space/
 
-  🧊 MLTT/CIC Theorem Prover version 0.4 (c) 2025 Groupoїd Infinity"
+  🧊 MLTT/CIC Theorem Prover version 0.5 (c) 2025 Groupoїd Infinity"
 
 let () = 
   test ();

@@ -275,7 +275,7 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
 ```
 https://per.groupoid.space/
 
-  🧊 MLTT/CIC Theorem Prover version 0.4 (c) 2025 Groupoїd Infinity
+  🧊 MLTT/CIC Theorem Prover version 0.5 (c) 2025 Groupoїd Infinity
 
 For help type `help`.
 

@@ -55,56 +55,57 @@ let subst x s t = subst_many [(x, s)] t
 let rec equal env ctx t1' t2' =
     let t1 = normalize env ctx t1' in
     let t2 = normalize env ctx t2' in
-    structural_equal env ctx t1 t2
-and structural_equal env ctx t1 t2 =
+    equal' env ctx t1 t2
+
+and equal' env ctx t1 t2 =
     match t1, t2 with
     | Var x, Var y -> x = y
     | Universe i, Universe j -> i = j
     | Pi (x, a, b), Pi (y, a', b') ->
-        structural_equal env ctx a a' &&
-        structural_equal env (add_var ctx x a) b (subst y (Var x) b')
+        equal' env ctx a a' &&
+        equal' env (add_var ctx x a) b (subst y (Var x) b')
     | Lam (x, d, b), Lam (y, d', b') ->
-        structural_equal env ctx d d' &&
-        structural_equal env (add_var ctx x d) b (subst y (Var x) b')
+        equal' env ctx d d' &&
+        equal' env (add_var ctx x d) b (subst y (Var x) b')
     (* Eta-expansion: λx.b = t if b = t x *)
     | Lam (x, d, b), t when not (is_lam t) ->
         let x_var = Var x in
-        structural_equal env ctx b (App (t, x_var)) &&
+        equal' env ctx b (App (t, x_var)) &&
         (match infer env ctx t with
-         | Pi (y, a, b') -> structural_equal env ctx d a
+         | Pi (y, a, b') -> equal' env ctx d a
          | _ -> false)
     | t, Lam (x, d, b) when not (is_lam t) ->
         let x_var = Var x in
-        structural_equal env ctx (App (t, x_var)) b &&
+        equal' env ctx (App (t, x_var)) b &&
         (match infer env ctx t with
-         | Pi (y, a, b') -> structural_equal env ctx a d
+         | Pi (y, a, b') -> equal' env ctx a d
          | _ -> false)
     | App (f, arg), App (f', arg') ->
-        structural_equal env ctx f f' && structural_equal env ctx arg arg'
+        equal' env ctx f f' && equal' env ctx arg arg'
     | Sigma (x, a, b), Sigma (y, a', b') ->
-        structural_equal env ctx a a' &&
-        structural_equal env (add_var ctx x a) b (subst y (Var x) b')
+        equal' env ctx a a' &&
+        equal' env (add_var ctx x a) b (subst y (Var x) b')
     | Pair (a, b), Pair (a', b') ->
-        structural_equal env ctx a a' && structural_equal env ctx b b'
-    | Fst t, Fst t' -> structural_equal env ctx t t'
-    | Snd t, Snd t' -> structural_equal env ctx t t'
+        equal' env ctx a a' && equal' env ctx b b'
+    | Fst t, Fst t' -> equal' env ctx t t'
+    | Snd t, Snd t' -> equal' env ctx t t'
     | Id (ty, a, b), Id (ty', a', b') ->
-        structural_equal env ctx ty ty' &&
-        structural_equal env ctx a a' && structural_equal env ctx b b'
-    | Refl t, Refl t' -> structural_equal env ctx t t'
+        equal' env ctx ty ty' &&
+        equal' env ctx a a' && equal' env ctx b b'
+    | Refl t, Refl t' -> equal' env ctx t t'
     | Inductive d1, Inductive d2 ->
         d1.name = d2.name && d1.level = d2.level &&
-        List.for_all2 (fun (n1, t1) (n2, t2) -> n1 = n2 && structural_equal env ctx t1 t2) d1.params d2.params
+        List.for_all2 (fun (n1, t1) (n2, t2) -> n1 = n2 && equal' env ctx t1 t2) d1.params d2.params
     | Constr (j, d1, args1), Constr (k, d2, args2) ->
-        j = k && d1.name = d2.name && List.for_all2 (structural_equal env ctx) args1 args2
+        j = k && d1.name = d2.name && List.for_all2 (equal' env ctx) args1 args2
     | Ind (d1, p1, cases1, t1), Ind (d2, p2, cases2, t2) ->
-        d1.name = d2.name && structural_equal env ctx p1 p2 &&
-        List.for_all2 (structural_equal env ctx) cases1 cases2 &&
-        structural_equal env ctx t1 t2
+        d1.name = d2.name && equal' env ctx p1 p2 &&
+        List.for_all2 (equal' env ctx) cases1 cases2 &&
+        equal' env ctx t1 t2
     | J (ty, a, b, c, d, p), J (ty', a', b', c', d', p') ->
-        structural_equal env ctx ty ty' && structural_equal env ctx a a' &&
-        structural_equal env ctx b b' && structural_equal env ctx c c' &&
-        structural_equal env ctx d d' && structural_equal env ctx p p'
+        equal' env ctx ty ty' && equal' env ctx a a' &&
+        equal' env ctx b b' && equal' env ctx c c' &&
+        equal' env ctx d d' && equal' env ctx p p'
     | _ -> t1 = t2
 
 and is_lam = function Lam _ -> true | _ -> false
@@ -259,7 +260,7 @@ and reduce env ctx t =
     | Constr (j, d, args) -> let args' = List.map (reduce env ctx) args in if args = args' then t else Constr (j, d, args')
     | Fst (Pair (a, b)) -> a
     | Snd (Pair (a, b)) -> b
-    | J (ty, a, b, c, d, Refl a') when structural_equal env ctx a a' && structural_equal env ctx b a' ->
+    | J (ty, a, b, c, d, Refl a') when equal' env ctx a a' && equal' env ctx b a' ->
         if trace then (Printf.printf "Reducing J with refl: "; print_term t; print_string " to "; print_term (App (d, a)); print_endline "");
         App (d, a)
     | J (ty, a, b, c, d, p) -> let p' = reduce env ctx p in if p = p' then t else J (ty, a, b, c, d, p')
@@ -269,7 +270,7 @@ and reduce env ctx t =
 and normalize env ctx t =
     let t' = reduce env ctx t in
     if (trace) then (Printf.printf "One-step β-reductor: "; print_term t'; print_endline "");
-    if structural_equal env ctx t t' then t else normalize env ctx t'
+    if equal' env ctx t t' then t else normalize env ctx t'
 
 and print_J ty a b c d p depth =
     print_string "J ("; print_term_depth (depth + 1) ty; print_string ", "; print_term_depth (depth + 1) a; print_string ", "; print_term_depth (depth + 1) b;

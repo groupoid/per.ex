@@ -300,13 +300,6 @@ https://per.groupoid.space/
 
   MLTT/CIC Theorem Prover version 0.4 (c) 2025 Groupoїd Infinity
 
-> intro z
-> elim z
-> intro p
-> exact (fst p)
-> intro x
-> assumption
-
 For help type `help`.
 
 Starting proof for: Π(n : Nat).Nat

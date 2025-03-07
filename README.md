@@ -22,7 +22,7 @@ The type checker operates over a term syntax comprising:
 
 * `Universe i`: Type universes with level i ∈ ℕ.
 * `Pi (x, A, B)`: Dependent function types, where `A : Universe i` and `B : Universe j` under `x : A`. `Lam (x, A, t)`: Lambda abstraction. `App (f, a)`: Function application.
-* `Sigma (x, A, B)`: Dependent pair types. `Pair (a, b)`, `Fst p`, `Snd p: Pair` construction and projections.
+* `Sigma (x, A, B)`: Dependent pair types. `Pair (a, b)`, `Fst p`, `Snd p` construction and projections.
 * `Id (A, a, b)`: Identity type, with `Refl` a and `J` eliminator.
 * `Inductive d`: Inductive types with constructors `Constr (j, d, args)` and eliminator `Ind`.
 

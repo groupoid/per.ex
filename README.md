@@ -295,7 +295,7 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
   For `Lam (x, A, t) : Pi (x, A, B)`, `reduce `(App (Lam (x, A, t), a))` terminates for all `a : A`;
   `normalize Δ Γ t` terminates.
 
-### Normalization
+### Canonicity
 
 * Definition: Reduction reaches a normal form; equality is decidable.
 * Formal Statement: `equal Δ Γ t t'` terminates, reflecting normalize’s partial eta and beta reductions.

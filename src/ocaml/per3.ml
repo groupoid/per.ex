@@ -154,7 +154,7 @@ and check_universe env ctx t =
 and check env ctx t ty =
     if (trace) then (Printf.printf "Checking: "; print_term t; print_string " against "; print_term ty; print_endline "");
     match t, ty with
-    | Pi (x, a, b), Pi (y, a', b') -> if (equal env ctx a a' && equal env (add_var ctx x a) b (subst y (Var x) b')) then ()
+    | Pi (x, a, b), Pi (y, a', b') -> if not (equal env ctx a a') then raise (TypeError "Pi domain mismatch"); let ctx' = add_var ctx x a in check env ctx' b (subst y (Var x) b')
     | Lam (x, domain, body), Pi (y, a, b) -> check env ctx domain (infer env ctx domain); let b_subst = subst y (Var x) b in check env (add_var ctx x domain) body b_subst
     | Constr (j, d, args), Inductive d' when d.name = d'.name -> let inferred = infer env ctx t in if not (equal env ctx inferred ty) then raise (TypeError "Constructor type mismatch")
     | Elim (d, p, cases, t'), ty -> let inferred = infer_elim env ctx d p cases t' in if not (equal env ctx inferred ty) then raise (TypeError "Elimination type mismatch")

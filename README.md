@@ -293,7 +293,7 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
   types without altering propositional truths [Pfenning & Paulin-Mohring, 1989]. Inductive types like Nat satisfy
   initiality—every algebra morphism from Nat to another structure is uniquely defined—ensuring categorical universality [Dybjer, 1997].
 
-## Proof Shell
+## Game Console
 
 ```
 https://per.groupoid.space/

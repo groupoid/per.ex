@@ -9,20 +9,23 @@ This work presents a type checker implemented in OCaml, designed
 as a minimal core for a dependently-typed lambda calculus.
 The system adheres to strict constraints: no pattern matching,
 no let-bindings, no implicit arguments, no modules or namespaces,
-and no function extensionality. It supports universes, dependent
-products `Pi`, dependent pairs `Sigma`, identity types `Id`, and
-`Inductive` types with strict positivity enforcement. We enumerate
-and analyze its mathematical properties, focusing on correctness,
-soundness, totality, and related attributes relevant to formal
-mathematics.
+and no function extensionality, single file distribution.
+It supports universes, dependent products `Pi`, dependent pairs `Sigma`,
+identity types `Id`, and `Inductive` types with strict positivity enforcement.
+Its mathematical properties, focusing on correctness,
+soundness, totality, and related attributes relevant
+to formal mathematics are being analized.
 
 ## Intro
 
 The type checker operates over a term syntax comprising:
 
-* `Universe i`: Type universes with level i ∈ ℕ.
-* `Pi (x, A, B)`: Dependent function types, where `A : Universe i` and `B : Universe j` under `x : A`. `Lam (x, A, t)`: Lambda abstraction. `App (f, a)`: Function application.
-* `Sigma (x, A, B)`: Dependent pair types. `Pair (a, b)`, `Fst p`, `Snd p` construction and projections.
+* `Universe i`: Type universes with level `i ∈ ℕ`.
+* `Pi (x, A, B)`: Dependent function types, where `A : Universe i` and `B : Universe j` under `x : A`.
+  `Lam (x, A, t)`: Lambda abstraction.
+  `App (f, a)`: Function application.
+* `Sigma (x, A, B)`: Dependent pair types.
+  `Pair (a, b)`, `Fst p`, `Snd p` construction and projections.
 * `Id (A, a, b)`: Identity type, with `Refl` a and `J` eliminator.
 * `Inductive d`: Inductive types with constructors `Constr (j, d, args)` and eliminator `Ind`.
 

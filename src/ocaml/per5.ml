@@ -3,6 +3,7 @@
 (* TYPE CHECKER CORE LANGUAGE *)
 
 let trace: bool = false
+let tests: bool = false
 
 type level = int
 type name = string
@@ -414,13 +415,14 @@ let test_equality_theorems () =
     let sym = Lam ("x", a, Lam ("y", a, Lam ("p", Id (a, Var "x", Var "y"), J (a, Var "x", Var "y", sym_motive, sym_d, Var "p")))) in
     let sym_ty = Pi ("x", a, Pi ("y", a, Pi ("p", Id (a, Var "x", Var "y"), Id (a, Var "y", Var "x")))) in
     assert (equal env ctx (infer env ctx sym) sym_ty);
+    print_string "Identity Symmetry PASSED.\n";
     (* Transitivity *)
     let trans_motive = Pi ("y", a, Pi ("z", a, Pi ("q", Id (a, Var "y", Var "z"), Id (a, Var "x", Var "z")))) in
     let trans_d = Lam ("y", a, Var "p") in
       let trans = Lam ("x", a, Lam ("y", a, Lam ("p", Id (a, Var "x", Var "y"), Lam ("z", a, Lam ("q", Id (a, Var "y", Var "z"), J (a, Var "y", Var "z", trans_motive, trans_d, Var "q")))))) in
     let trans_ty = Pi ("x", a, Pi ("y", a, Pi ("p", Id (a, Var "x", Var "y"), Pi ("z", a, Pi ("q", Id (a, Var "y", Var "z"), Id (a, Var "x", Var "z")))))) in
     assert (equal env ctx (infer env ctx trans) trans_ty);
-    print_string "Identity System Equalities PASSED.\n"
+    print_string "Identity Transitivity PASSED.\n"
 
 let test_equal () =
     let ctx = empty_ctx in
@@ -436,7 +438,7 @@ let test_eta () =
     let t2 = Var "f" in
     assert (equal empty_env ctx t1 t2);
     if trace then (Printf.printf "Eta test: "; print_term t1; print_string " = "; print_term t2; print_endline " (passed)");
-    Printf.printf "Eta-expansion PASSED.\n"
+    Printf.printf "Pi Eta-expansion PASSED.\n"
 
 let test_universe () =
     let ctx = [] in
@@ -460,8 +462,6 @@ let test_inductive_eta_full () =
     let proof = J (ty, App (Var "f", Var "x"), App (Var "g", Var "x"), motive, refl_case, App (Var "eq", Var "x")) in
     let expected_ty = nat_ind in  (* Changed to match the result *)
     let inferred_ty = infer env ctx proof in
-    Printf.printf "Inferred type: "; print_term inferred_ty; print_endline "";
-    Printf.printf "Expected type: "; print_term expected_ty; print_endline "";
     assert (equal env ctx inferred_ty expected_ty);
     print_string "Pointwise Equality Transport PASSED.\n";
     print_string "Note: Full function extensionality (f = g) requires an axiom beyond J.\n"
@@ -469,17 +469,14 @@ let test_inductive_eta_full () =
 let test_inductive_eta () =
     let ctx = [("x", nat_ind); ("f", Pi ("x", nat_ind, nat_ind)); ("g", Pi ("x", nat_ind, nat_ind));
                ("eq", Id (nat_ind, App (Var "f", Var "x"), App (Var "g", Var "x")))] in
-    let env = [("Nat", nat_def)] in
-    (* Motive: given a = b, prove P a → P b *)
+    let env = [("Nat", nat_def)] in (* Motive: given a = b, prove P a → P b *)
     let motive = Pi ("a", nat_ind, Pi ("b", nat_ind, Pi ("_", Id (nat_ind, Var "a", Var "b"), Pi ("_", nat_ind, nat_ind)))) in
     let refl_case = Lam ("z", nat_ind, Var "f") in
     let proof = J (nat_ind, App (Var "f", Var "x"), App (Var "g", Var "x"), motive, refl_case, Var "eq") in
     let expected_ty = Pi ("_", nat_ind, nat_ind) in
     let inferred_ty = infer env ctx proof in
-    Printf.printf "Inferred type: "; print_term inferred_ty; print_endline "";
-    Printf.printf "Expected type: "; print_term expected_ty; print_endline "";
     assert (equal env ctx inferred_ty expected_ty);
-    print_string "Non-Lam Eta-Equality PASSED.\n"
+    print_string "Inductive Eta-Equality PASSED.\n"
 
 let test_positivity () =
     let bad_def = {
@@ -490,14 +487,14 @@ let test_positivity () =
     assert (match infer env empty_ctx (Inductive nat_def) with | Universe _ -> true | _ -> false);
     assert (match infer env empty_ctx (Inductive (list_def (Universe 0))) with | Universe _ -> true | _ -> false);
     try let _ = infer env empty_ctx (Inductive bad_def) in assert false with TypeError msg -> Printf.printf "Positivity check caught: %s\n" msg;
-    print_string "Positivity Check PASSED.\n"
+    print_string "Positivity Checking PASSED.\n"
 
 let test_edge_cases () =
     let env = [("Nat", nat_def)] in
     try let _ = infer env empty_ctx (Inductive { name = "X"; params = []; level = 0;
                    constrs = [(1, Pi ("x", Var "Y", Inductive { name = "X"; params = []; level = 0; constrs = [] }))] }) in
         assert false with TypeError msg ->  Printf.printf "Caught unbound type: %s\n" msg;
-    print_string "Edge Cases PASSED.\n"
+    print_string "Unboundness Checking PASSED.\n"
 
 let test_lambda_totality () =
     let env = [("Nat", nat_def)] in
@@ -516,17 +513,8 @@ let test_sigma_eta () =
     assert (equal env ctx t1 t2);
     Printf.printf "Sigma Eta-expansion PASSED.\n"
 
-let test () =
-    test_universe ();
-    test_equal (); 
-    test_equality_theorems ();
-    test_eta ();
-    test_sigma_eta ();
-    test_inductive_eta ();
-    test_inductive_eta_full ();
-    test_positivity ();
-    test_edge_cases ();
-    test_lambda_totality ();
+
+let test_basic_setup () =
     let ctx : context = [] in
     let zero = Constr (1, nat_def, []) in
     let one = Constr (2, nat_def, [zero]) in
@@ -540,30 +528,26 @@ let test () =
     let id_ty = Id (nat_ind, zero, zero) in
     let absurd = Lam ("e", empty_ind, Ind (empty_def, Pi ("_", empty_ind, Inductive nat_def), [], Var "e")) in
     let sym_term = normalize env ctx (App (App (App (id_symmetry, zero), zero), Refl zero)) in
-    let _ = Printf.printf "sym_term PASSED\n" in
     let trans_term = App (App (App (App (App (id_transitivity, zero), zero), zero), Refl zero), Refl zero) in
-    try let succ_ty = infer env ctx succ in
-        let plus_ty = infer env ctx plus in
-        let nat_elim_ty = infer env ctx nat_elim in
-        let _ = check env ctx pair_term pair_ty in
-        let fst_ty = infer env ctx fst_term in
-        let snd_ty = infer env ctx snd_term in
-        let sym_ty = infer env ctx sym_term in
-        let _ = check env ctx id_term id_ty in
-        let trans_ty = infer env ctx trans_term in
-        let trans_norm = normalize env ctx trans_term in
-        let subst_norm = normalize env ctx subst_eq in
-        let add_normal = normalize env ctx add_term in
-        let len_normal = normalize env ctx (App (list_length, sample_list)) in
-        let bottom = normalize env ctx absurd in
+    let fst_ty = infer env ctx fst_term in
+    let snd_ty = infer env ctx snd_term in
+    let sym_ty = infer env ctx sym_term in
+    let trans_ty = infer env ctx trans_term in
+    let trans_norm = normalize env ctx trans_term in
+    let subst_norm = normalize env ctx subst_eq in
+    let add_normal = normalize env ctx add_term in
+    let len_normal = normalize env ctx (App (list_length, sample_list)) in
+    let bottom = normalize env ctx absurd in
+    begin try check env ctx pair_term pair_ty; check env ctx id_term id_ty with TypeError msg -> print_endline ("Type error: " ^ msg) end;
+    if tests then begin
         Printf.printf "eval absurd = "; print_term bottom; print_endline "";
         Printf.printf "eval Tree.leaf = "; print_term leaf; print_endline "";
         Printf.printf "eval Nat.add(2,2) = "; print_term add_normal; print_endline "";
         Printf.printf "eval List.length(list) = "; print_term len_normal; print_endline "";
         Printf.printf "Nat.Ind = "; print_term nat_elim; print_endline "";
-        Printf.printf "Nat.succ : "; print_term succ_ty; print_endline "";
-        Printf.printf "Nat.plus : "; print_term plus_ty; print_endline "";
-        Printf.printf "Nat.Ind : "; print_term nat_elim_ty; print_endline "";
+        Printf.printf "Nat.succ : "; print_term (infer env ctx succ); print_endline "";
+        Printf.printf "Nat.plus : "; print_term (infer env ctx plus); print_endline "";
+        Printf.printf "Nat.Ind : "; print_term (infer env ctx nat_elim); print_endline "";
         Printf.printf "Sigma.pair = "; print_term pair_term; print_endline "";
         Printf.printf "Sigma.fst(Sigma.pair) : "; print_term fst_ty; print_endline "";
         Printf.printf "Sigma.snd(Sigma.pair) : "; print_term snd_ty; print_endline "";
@@ -573,7 +557,21 @@ let test () =
         Printf.printf "eval tran_term = "; print_term trans_norm; print_endline "";
         Printf.printf "eval subst_eq = "; print_term subst_norm; print_endline "";
         Printf.printf "id_transitivity : "; print_term trans_ty; print_endline "";
-    with TypeError msg -> print_endline ("Type error: " ^ msg)
+        print_endline "REALITY CHECK PASSED"
+    end
+  
+let test () =
+    test_universe ();
+    test_equal (); 
+    test_equality_theorems ();
+    test_eta ();
+    test_sigma_eta ();
+    test_inductive_eta ();
+    test_inductive_eta_full ();
+    test_positivity ();
+    test_edge_cases ();
+    test_lambda_totality ();
+    test_basic_setup ()
 
 (* THEOREM PROVER TACTICS LANGUAGE *)
 

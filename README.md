@@ -295,19 +295,12 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
   types without altering propositional truths [Pfenning & Paulin-Mohring, 1989]. Inductive types like Nat satisfy
   initiality—every algebra morphism from Nat to another structure is uniquely defined—ensuring categorical universality [Dybjer, 1997].
 
-## Proof Shell
+## Game Console
 
 ```
 https://per.groupoid.space/
 
   MLTT/CIC Theorem Prover version 0.4 (c) 2025 Groupoїd Infinity
-
-> intro z
-> elim z
-> intro p
-> exact (fst p)
-> intro x
-> assumption
 
 For help type `help`.
 

@@ -5,13 +5,12 @@ Per Martin-Löf: Calculus of Inductive Constructions
 
 ## Abstract
 
-This type checker, implemented in OCaml, constitutes a minimal core for a dependently-typed lambda calculus,
+**Per** is MLTT/CIC tactical theorem prover implemented in OCaml, constitutes a minimal core for a dependently-typed lambda calculus,
 constrained to exclude pattern matching, let-bindings, implicit arguments, modules, namespaces, and function extensionality.
 It encompasses universes, dependent products `Pi`, dependent pairs `Sigma`, identity types `Id`, and `Inductive` types with strict positivity enforcement.
 Recent refinements ensure totality for user-defined lambda terms via a positive occurrence check. 
-Its mathematical properties, focusing on correctness,
-soundness, totality, and related attributes relevant
-to formal mathematics are being analyzed.
+Its mathematical properties, focusing on correctness, soundness, totality, canonicity, decidability and related
+attributes relevant to formal mathematics are being analyzed.
 
 ## Intro
 

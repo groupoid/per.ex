@@ -92,7 +92,19 @@ and infer env ctx t =
     | Snd p -> (match infer env ctx p with | Sigma (x, a, b) -> subst x (Fst p) b | ty -> raise (TypeError ("Snd expects a Sigma type, got: " ^ (let s = ref "" in print_term_depth 0 ty; !s))))
     | Id (ty, a, b) -> check env ctx a ty; check env ctx b ty; Universe (check_universe env ctx ty)
     | Refl a -> let a_ty = infer env ctx a in Id (a_ty, a, a)
-    | Inductive d -> List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params; Universe d.level
+    | Inductive d -> 
+      List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params;
+      let d_applied = Inductive { d with constrs = [] } in  (* Simplified self-reference *)
+      List.iter (fun (j, ty) ->
+        let rec check_return ty' =
+            match ty' with
+            | Pi (_, _, b) -> check_return b
+            | Inductive d' when d'.name = d.name -> ()
+            | _ -> raise (TypeError ("Constructor " ^ string_of_int j ^ " must return " ^ d.name))
+        in check_return ty
+      ) d.constrs;
+      Universe d.level
+(*    | Inductive d -> List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params; Universe d.level *)
     | Constr (j, d, args) -> let cj = List.assoc j d.constrs in let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in infer_ctor env ctx cj_subst args
     | Ind (d, p, cases, t') -> infer_Ind env ctx d p cases t'
     | J (ty, a, b, c, d, p) -> infer_J env ctx ty a b c d p in normalize env ctx res

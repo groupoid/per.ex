@@ -293,63 +293,29 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
   types without altering propositional truths [Pfenning & Paulin-Mohring, 1989]. Inductive types like Nat satisfy
   initiality—every algebra morphism from Nat to another structure is uniquely defined—ensuring categorical universality [Dybjer, 1997].
 
-## Test
+## Proof Shell
 
 ```
-let test () =
-  let ctx : context = [] in
-  let zero = Constr (1, nat_def, []) in
-  let one = Constr (2, nat_def, [zero]) in
-  let two = Constr (2, nat_def, [one]) in
-  let add_term = App (App (plus, two), two) in
-  let pair_term = Pair (zero, one) in
-  let pair_ty = Sigma ("x", nat_ind, nat_ind) in
-  let fst_term = Fst pair_term in
-  let snd_term = Snd pair_term in
-  let id_term = Refl zero in
-  let id_ty = Id (nat_ind, zero, zero) in
-  let sym_term = normalize env ctx (App (App (App (id_symmetry, zero), zero), Refl zero)) in
-  let trans_term = App (App (App (App (App (id_transitivity, zero),
-                   zero), zero), Refl zero), Refl zero) in
+https://per.groupoid.space/
 
-  try let succ_ty = infer env ctx succ in
-      let plus_ty = infer env ctx plus in
-      let nat_elim_ty = infer env ctx nat_elim in
-      let _ = check env ctx pair_term pair_ty in
-      let fst_ty = infer env ctx fst_term in
-      let snd_ty = infer env ctx snd_term in
-      let sym_ty = infer env ctx sym_term in
-      let _ = check env ctx id_term id_ty in
-      let trans_ty = infer env ctx trans_term in
-      let add_normal = normalize env empty_ctx add_term in
-      let list_len = normalize env empty_ctx (App (list_length, sample_list)) in
+  MLTT/CIC Theorem Prover version 0.4 (c) 2025 Groupoїd Infinity
 
-      ...
+> intro z
+> elim z
+> intro p
+> exact (fst p)
+> intro x
+> assumption
 
-  with TypeError msg -> print_endline ("Type error: " ^ msg)
+For help type `help`.
 
-let _ = test ()
-```
+Starting proof for: Π(n : Nat).Nat
+Goal 1:
+Context: []
+⊢ Π(n : Nat).Nat
 
-```
-$ ./per
-eval Nat.add(2,2) = Nat.2 Nat.2 Nat.2 Nat.2 Nat.1
-eval List.length(list) = Nat.2 Nat.2 Nat.1
-Nat.Elim = Nat.elim (Π (x : Nat), Type0) [Nat; λ (n), λ (ih), ih] Nat.1
-Nat.succ : Π (n : Nat), Nat
-Nat.plus : Π (m : Nat), П (n : Nat), Nat
-Nat.elim : Type0
-Sigma.pair(1,2) = (Nat.1, Nat.2 Nat.1)
-Sigma.fst(Sigma.pair(_,_)) : Nat
-Sigma.snd(Sigma.pair(_,_)) : Nat
-id_symmetry : {Nat.1 = Nat.1 : Nat}
-eval id_symmetry = Id.refl Nat.1
-id_term : id_ty
-eval tran_term = Id.refl Nat.1
-eval subst_eq : λ (a), λ (b), λ (p), λ (P), λ (x),
-  J (Nat, a, b, Π(x : Nat).Π(y : Nat).Π(p : {x = y : Nat}).(P y), λ (x), x, p)
-id_transitivity : (((Π(x : Nat).Π(y : Nat).
-  Π (_ : {x = y : Nat}).{Nat.1 = Nat.1 : Nat} Nat.1) Nat.1) Id.refl Nat.1)
+1 goals remaining
+>
 ```
 
 ## CIC

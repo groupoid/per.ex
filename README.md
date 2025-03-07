@@ -291,15 +291,15 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
 
 * Definition: All well-typed constructs terminate under reduction.
 * Formal Statement: 1) For `Inductive d : Universe i`, each `Constr (j, d, args)` is total;
-  For `t : T` with `Ind` or `J`, `reduce t` terminates;
-  For `Lam (x, A, t) : Pi (x, A, B)`, `reduce `(App (Lam (x, A, t), a))` terminates for all `a : A`;
-  `normalize Δ Γ t` terminates.
+  2) For `t : T` with `Ind` or `J`, `reduce t` terminates;
+  3) For `Lam (x, A, t) : Pi (x, A, B)`, `reduce (App (Lam (x, A, t), a))` terminates for all `a : A`;
+  4) `normalize Δ Γ t` terminates.
 
 ### Canonicity
 
 * Definition: Reduction reaches a normal form; equality is decidable.
 * Formal Statement: `equal Δ Γ t t'` terminates, reflecting normalize’s partial eta and beta reductions.
-* Status: Complete within minimal scope, eta for Sigma is absent.
+* Status: Complete within a scope.
 
 ### Decidability
 

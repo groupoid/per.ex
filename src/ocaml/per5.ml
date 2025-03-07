@@ -187,13 +187,19 @@ and check env ctx t ty =
           in raise (TypeError error))
 
 and apply_case env ctx d p cases case ty args =
+    let rec apply ty args_acc = function
+      | arg :: rest -> apply (subst "_dummy" arg ty) (arg :: args_acc) rest
+      | [] -> List.fold_left (fun t a -> subst "_dummy" a t) case (List.rev args_acc)
+    in apply ty [] args
+(*
+and apply_case env ctx d p cases case ty args =
     let rec apply ty args_acc remaining_args = match ty, remaining_args with
       | Pi (x, a, b), arg :: rest -> let b' = subst x arg b in apply b' (arg :: args_acc) rest
       | Pi (_, _, b), [] -> apply b args_acc []
       | _, [] -> let rec app t = function | a :: rest -> app (subst "_dummy" a t) rest | [] -> t in app case (List.rev args_acc)
       | _ -> raise (TypeError "Argument mismatch")
     in apply ty [] args
-
+*)
 and reduce env ctx t =
     if (trace) then (Printf.printf "Reducing: "; print_term t; print_endline "");
     match t with

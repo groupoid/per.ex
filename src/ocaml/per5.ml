@@ -13,7 +13,7 @@ type term =
   | Sigma of name * term * term | Pair of term * term | Fst of term | Snd of term
   | Id of term * term * term | Refl of term | J of term * term * term * term * term * term  (* J A a b C d p *)
   | Inductive of inductive | Constr of int * inductive * term list | Ind of inductive * term * term list * term
-and inductive = { name : string; params : (name * term) list; level : level; constrs : (int * term) list; mutual_group : string list }
+and inductive = { name : string; params : (name * term) list; level : level; constrs : (int * term) list }
 
 type env = (string * inductive) list
 type context = (name * term) list
@@ -59,10 +59,9 @@ let rec equal env ctx t1' t2' =
 and equal' env ctx t1 t2 =
     match t1, t2 with
     | Var x, Var y -> x = y
-    | Universe i, Universe j -> i = j
+    | Universe i, Universe j -> i <= j
     | Pi (x, a, b), Pi (y, a', b') -> equal' env ctx a a' && equal' env (add_var ctx x a) b (subst y (Var x) b')
     | Lam (x, d, b), Lam (y, d', b') -> equal' env ctx d d' && equal' env (add_var ctx x d) b (subst y (Var x) b')
-    (* Eta-expansion: λx.b = t if b = t x *)
     | Lam (x, d, b), t when not (is_lam t) -> let x_var = Var x in equal' env ctx b (App (t, x_var)) && (match infer env ctx t with | Pi (y, a, b') -> equal' env ctx d a | _ -> false)
     | t, Lam (x, d, b) when not (is_lam t) -> let x_var = Var x in equal' env ctx (App (t, x_var)) b && (match infer env ctx t with | Pi (y, a, b') -> equal' env ctx a d | _ -> false)
     | App (f, arg), App (f', arg') -> equal' env ctx f f' && equal' env ctx arg arg'
@@ -196,7 +195,7 @@ and reduce env ctx t =
     match t with
     | App (Lam (x, domain, body), arg) -> subst x arg body
     | App (Pi (x, a, b), arg) -> subst x arg b
-    | App (f, arg) -> let f' = reduce env ctx f in let arg' = reduce env ctx arg in if f = f' && arg = arg' then t else App (f', arg')
+    | App (f, arg) -> let f' = reduce env ctx f in let arg' = reduce env ctx arg in App (f', arg')
     | Ind (d, p, cases, Constr (j, d', args)) when d.name = d'.name ->
       let case = List.nth cases (j - 1) in let cj = List.assoc j d.constrs in
       let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in
@@ -205,9 +204,7 @@ and reduce env ctx t =
     | Constr (j, d, args) -> let args' = List.map (reduce env ctx) args in if args = args' then t else Constr (j, d, args')
     | Fst (Pair (a, b)) -> a
     | Snd (Pair (a, b)) -> b
-    | J (ty, a, b, c, d, Refl a') when equal' env ctx a a' && equal' env ctx b a' ->
-        if trace then (Printf.printf "Reducing J with refl: "; print_term t; print_string " to "; print_term (App (d, a)); print_endline "");
-        App (d, a)
+    | J (ty, a, b, c, d, Refl a') when equal' env ctx a a' && equal' env ctx b a' -> App (d, a)
     | J (ty, a, b, c, d, p) -> let p' = reduce env ctx p in if p = p' then t else J (ty, a, b, c, d, p')
     | Refl a -> let a' = reduce env ctx a in if a = a' then t else Refl a'
     | _ -> t
@@ -250,21 +247,19 @@ and print_term t = print_term_depth 0 t
 (* TEST SUITE *)
 
 let nat_def = {
-  mutual_group = ["Nat"];
   name = "Nat"; params = []; level = 0;
   constrs = [
-    (1, Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] });
-    (2, Pi ("n", Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] },
-           Inductive { name = "Nat"; params = []; level = 0; constrs = []; mutual_group = ["Nat"] }))]
+    (1, Inductive { name = "Nat"; params = []; level = 0; constrs = [] });
+    (2, Pi ("n", Inductive { name = "Nat"; params = []; level = 0; constrs = [] },
+           Inductive { name = "Nat"; params = []; level = 0; constrs = [] }))]
 }
 
 let list_def (a : term) = {
-  mutual_group = ["List"];
   name = "List"; params = [("A", a)]; level = (match a with Universe i -> i | _ -> failwith "List param must be a type");
   constrs = [
-    (1, Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] }); (* nil *)
-    (2, Pi ("x", a, Pi ("xs", Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] },
-                        Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = []; mutual_group = ["List"] }))) (* cons *) ]
+    (1, Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = [] }); (* nil *)
+    (2, Pi ("x", a, Pi ("xs", Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = [] },
+                        Inductive { name = "List"; params = [("A", a)]; level = 0; constrs = [] }))) (* cons *) ]
 }
 
 let env = [("Nat", nat_def); ("List", list_def (Universe 0))]
@@ -339,16 +334,16 @@ let test_equality_theorems () =
     let sym_d = Lam ("x", a, Refl (Var "x")) in
     let sym = Lam ("x", a, Lam ("y", a, Lam ("p", Id (a, Var "x", Var "y"), J (a, Var "x", Var "y", sym_motive, sym_d, Var "p")))) in
     let sym_ty = Pi ("x", a, Pi ("y", a, Pi ("p", Id (a, Var "x", Var "y"), Id (a, Var "y", Var "x")))) in
-(*  print_string "Sym Left: "; print_term (infer env ctx sym); print_endline "";
-    print_string "Sym Right: "; print_term sym_ty; print_endline ""; *)
+    print_string "Sym Left: "; print_term (infer env ctx sym); print_endline "";
+    print_string "Sym Right: "; print_term sym_ty; print_endline "";
     assert (equal env ctx (infer env ctx sym) sym_ty);
     (* Transitivity *)
     let trans_motive = Pi ("y", a, Pi ("z", a, Pi ("q", Id (a, Var "y", Var "z"), Id (a, Var "x", Var "z")))) in
     let trans_d = Lam ("y", a, Var "p") in
       let trans = Lam ("x", a, Lam ("y", a, Lam ("p", Id (a, Var "x", Var "y"), Lam ("z", a, Lam ("q", Id (a, Var "y", Var "z"), J (a, Var "y", Var "z", trans_motive, trans_d, Var "q")))))) in
     let trans_ty = Pi ("x", a, Pi ("y", a, Pi ("p", Id (a, Var "x", Var "y"), Pi ("z", a, Pi ("q", Id (a, Var "y", Var "z"), Id (a, Var "x", Var "z")))))) in
-(*  print_string "Trans Left: "; print_term (infer env ctx trans); print_endline "";
-    print_string "Trans Right: "; print_term trans_ty; print_endline ""; *)
+    print_string "Trans Left: "; print_term (infer env ctx trans); print_endline "";
+    print_string "Trans Right: "; print_term trans_ty; print_endline "";
     assert (equal env ctx (infer env ctx trans) trans_ty);
     print_string "Identity System Equalities PASSED.\n"
 
@@ -397,6 +392,7 @@ let test () =
     let id_term = Refl zero in
     let id_ty = Id (nat_ind, zero, zero) in
     let sym_term = normalize env ctx (App (App (App (id_symmetry, zero), zero), Refl zero)) in
+    let _ = Printf.printf "sym_term PASSED\n" in
     let trans_term = App (App (App (App (App (id_transitivity, zero), zero), zero), Refl zero), Refl zero) in
     try let succ_ty = infer env ctx succ in
         let plus_ty = infer env ctx plus in
@@ -578,9 +574,13 @@ let rec console_loop env state =
   )
 
 let main () =
-  let nat = Inductive { name = "Nat"; params = []; level = 0;
-                        constrs = [(1, Universe 0); (2, Pi ("n", Inductive {name = "Nat"; params = []; level = 0; constrs = []; mutual_group = []}, Universe 0))];
-                        mutual_group = [] } in
+  let nat =
+      Inductive { name = "Nat"; params = []; level = 0;
+                  constrs = [(1, Universe 0);
+                             (2, Pi ("n", Inductive { name = "Nat";
+                                                      params = [];
+                                                      level = 0;
+                                                      constrs = []}, Universe 0))] } in
   let env = [("Nat", nat)] in
   let target = Pi ("n", Inductive nat_def, Inductive nat_def) in (* Example: ∀n : Nat, Nat *)
   Printf.printf "Starting proof for: "; print_term target; print_endline "";

@@ -1,0 +1,26 @@
+\newcommand{\coverpage}[3]
+{
+  \thispagestyle{empty}
+  \begin{center}
+  \bfseries
+  \Huge The Coq Proof Assistant \\
+  [12pt] #1 \\ [20pt]
+  \Large Version 8.2 \footnote[1]{This research was partly supported by IST working group ``Types''}
+  \vspace{0pt plus .5fill}
+  \\ #2
+  \par\vfill
+  Groupo\"{i}d Infinity
+
+  \vspace*{15pt}
+  \end{center}
+  \newpage
+  \thispagestyle{empty}
+  \hbox{}\vfill % without \hbox \vfill does not work at the top of the page
+  \begin{flushleft}
+  8.2, \today
+  \par\vspace{20pt}
+  \copyright INRIA 1999-2004 ({\Coq} versions 7.x) \\
+  \copyright INRIA 2004-2008 ({\Coq} versions 8.x)
+  #3
+  \end{flushleft}
+}

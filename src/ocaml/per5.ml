@@ -77,7 +77,7 @@ and equal' env ctx t1 t2 =
     | J (ty, a, b, c, d, p), J (ty', a', b', c', d', p') -> equal' env ctx ty ty' && equal' env ctx a a' && equal' env ctx b b' && equal' env ctx c c' && equal' env ctx d d' && equal' env ctx p p'
     | _ -> t1 = t2
 
-and is_lam = function Lam _ -> true | _ -> false
+and is_lam = function | Lam _ -> true | Pi _ -> true | _ -> false
 
 and infer env ctx t =
     let res = match t with
@@ -130,7 +130,7 @@ and infer_J env ctx ty' a b c d p =
     check env ctx d refl_case_ty;
     check env ctx p (Id (ty', a, b));
     let result_ty = App (App (App (c, a), b), p) in
-    (if trace then print_J ty' a b c d p 0); result_ty
+    normalize env ctx result_ty
 
 and infer_Ind env ctx d p cases t' =
     let t_ty = infer env ctx t' in
@@ -191,8 +191,9 @@ and check env ctx t ty =
         match inferred, ty' with
         | Universe i, Universe j when i >= j -> () (* cumulativity *)
         | _ -> if not (equal env ctx inferred ty') then
-          (let error = Printf.sprintf "Type Mismatch Error.\nInferred: %s.\nExpected: %s." (let s = ref "" in print_term inferred; !s) (let s = ref "" in print_term ty'; !s)
-          in raise (TypeError error))
+          (let error = Printf.sprintf "Type Mismatch Error. Inferred: %s. Expected: %s."
+           (let s = ref "" in print_term inferred; !s) (let s = ref "" in print_term ty'; !s)
+           in raise (TypeError error))
 
 and apply_case env ctx d p cases case ty args =
     let rec apply ty args_acc = function
@@ -249,9 +250,9 @@ and print_term_depth depth t =
     | Id (ty, a, b) -> print_string "{"; print_term_depth (depth + 1) a; print_string " = "; print_term_depth (depth + 1) b; print_string " : "; print_term_depth (depth + 1) ty; print_string "}"
     | Refl t -> print_string "Id.refl "; print_term_depth (depth + 1) t
     | J (ty, a, b, c, d, p) -> print_J ty a b c d p depth
+    | Inductive d -> print_string d.name
     | Constr (i, d, args) -> print_string d.name; print_string "."; print_string (string_of_int i); List.iteri (fun j c -> if j > 0 then print_string "; "; print_term_depth (depth + 1) c) args
     | Ind (d, p, cases, t') -> print_Ind d p cases t' depth
-    | Inductive d -> print_string d.name
 
 and print_term t = print_term_depth 0 t
 
@@ -386,11 +387,23 @@ let test_universe () =
     if trace then (Printf.printf "Universe test: Type0 : Type1 (passed)\n");
     Printf.printf "Universe Consistency PASSED\n"
 
+let test_non_lam_eta () =
+    let ctx = [("x", nat_ind); ("f", Pi ("x", nat_ind, nat_ind)); ("g", Pi ("x", nat_ind, nat_ind));
+               ("eq", Id (nat_ind, App (Var "f", Var "x"), App (Var "g", Var "x")))] in
+    let env = [("Nat", nat_def)] in
+    let motive = Pi ("a", nat_ind, Pi ("b", nat_ind, Pi ("_", Id (nat_ind, Var "a", Var "b"), 
+                   Id (Pi ("x", nat_ind, nat_ind), Var "f", Var "g")))) in
+    let refl_case = Lam ("z", nat_ind, Refl (Var "f")) in
+    let proof = J (nat_ind, App (Var "f", Var "x"), App (Var "g", Var "x"), motive, refl_case, Var "eq") in
+    assert (equal env ctx (infer env ctx proof) (Id (Pi ("x", nat_ind, nat_ind), Var "f", Var "g")));
+    print_string "Non-Lam Eta-Equality PASSED.\n"
+
 let test () =
     test_universe ();
     test_equal (); 
     test_equality_theorems ();
     test_eta ();
+(*  test_non_lam_eta (); *)
     let ctx : context = [] in
     let zero = Constr (1, nat_def, []) in
     let one = Constr (2, nat_def, [zero]) in

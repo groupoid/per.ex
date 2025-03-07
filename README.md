@@ -273,9 +273,9 @@ Per’s elegance rests on firm theoretical ground. Here, we reflect on key meta-
 ### Corectness
 
 * Definition: Typing rules conform to a minimal intensional dependent type theory.
-* Formal Statement: For all `t, Γ, Δ`, if `infer Δ Γ t = T`, then `Γ ⊢ t : T` under rules including:
-  1) `Γ ⊢ Lam (x, A, t) : Pi (x, A, B)` if `Γ ⊢ A : Universe i`, `Γ, x : A ⊢ t : B`, and `t` contains a positive occurrence of `x`;
-  2) Other rules (e.g., Pi, Id, Inductive) align with standard formulations.
+* Formal Statement: For all `t, Γ, Δ`, if `infer Δ Γ t = T`, then `Γ ⊢ t : T` under rules including: 1) `Γ ⊢ Lam (x, A, t) : Pi (x, A, B)`
+  if `Γ ⊢ A : Universe i`, `Γ, x : A ⊢ t : B`, and `t` contains a positive occurrence of `x`; 2) Other rules (e.g., `Pi`, `Id`, `Inductive`)
+  align with standard formulations.
 * Verification: eqality checking enforced by tests to confirm rule adherence.
 * Status: Fully correct, with lambda totality integrated.
 

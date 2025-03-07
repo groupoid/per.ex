@@ -177,6 +177,7 @@ and infer_J env ctx ty' a b c d p =
     normalize env ctx result_ty
 
 and infer_Ind env ctx d p cases t' =
+    if List.length cases <> List.length d.constrs then raise (TypeError "Number of cases doesn't match constructors");
     let t_ty = infer env ctx t' in
     let d_applied = apply_inductive d (List.map snd d.params) in
     if not (equal env ctx t_ty d_applied) then raise (TypeError "Elimination target type mismatch");
@@ -187,7 +188,6 @@ and infer_Ind env ctx d p cases t' =
     if not (equal env ctx t_ty a) then raise (TypeError "Target type does not match motive domain");
     let result_ty = subst x t' b in
     if (trace) then (print_Ind d p cases t' 0);
-    if List.length cases <> List.length d.constrs then raise (TypeError "Number of cases doesn't match constructors");
     List.iteri (fun j case ->
       let j_idx = j + 1 in
       let cj = List.assoc j_idx d.constrs in
@@ -256,7 +256,7 @@ and reduce env ctx t =
       let case = List.nth cases (j - 1) in let cj = List.assoc j d.constrs in
       let cj_subst = subst_many (List.combine (List.map fst d.params) (List.map snd d.params)) cj in
       apply_case env ctx d p cases case cj_subst args
-    | Ind (d, p, cases, t') -> let t'' = reduce env ctx t' in if t' = t'' then t else Ind (d, p, cases, t'')
+    | Ind (d, p, cases, t') -> let t'' = reduce env ctx t' in (match t'' with | Constr _ -> reduce env ctx (Ind (d, p, cases, t'')) | _ -> t)
     | Constr (j, d, args) -> let args' = List.map (reduce env ctx) args in if args = args' then t else Constr (j, d, args')
     | Fst (Pair (a, b)) -> a
     | Snd (Pair (a, b)) -> b
@@ -302,6 +302,8 @@ and print_term t = print_term_depth 0 t
 
 (* TEST SUITE *)
 
+let empty_def = { name = "Empty"; params = []; level = 0; constrs = [] }
+
 let nat_def = {
   name = "Nat"; params = []; level = 0;
   constrs = [
@@ -331,16 +333,17 @@ let tree_def a = {
   ]
 }
 
+let empty_ind = Inductive empty_def
+let nat_ind = Inductive nat_def
+let list_ind = Inductive (list_def (Universe 0))
+let tree_ind = Inductive (tree_def (Inductive nat_def))
+
+let leaf = Constr (1, tree_def (Universe 0), [Inductive nat_def ])  (* Leaf *)
 let node n l r = Constr (2, tree_def (Universe 0), [n; l; r])      (* Node *)
 let leaf = Constr (1, tree_def (Universe 0), [])
 let sample_tree = node (Constr (1, nat_def, [])) leaf leaf  (* Node(zero, Leaf, Leaf) *)
-let tree_def_inst = tree_def (Inductive nat_def)  (* Instantiate with Nat *)
-let tree_ind = Inductive tree_def_inst
-let nat_ind = Inductive nat_def
-let list_ind = Inductive (list_def (Universe 0))
-let leaf = Constr (1, tree_def (Universe 0), [Inductive nat_def ])  (* Leaf *)
 
-let env = [("Nat", nat_def); ("List", list_def (Universe 0)); ("Tree", tree_def_inst)]
+let env = [("Empty", empty_def); ("Nat", nat_def); ("List", list_def (Universe 0)); ("Tree", tree_def (Inductive nat_def))]
 
 let list_length =
   Lam ("l", list_ind,  (* l : List Type0 *)
@@ -535,6 +538,7 @@ let test () =
     let snd_term = Snd pair_term in
     let id_term = Refl zero in
     let id_ty = Id (nat_ind, zero, zero) in
+    let absurd = Lam ("e", empty_ind, Ind (empty_def, Pi ("_", empty_ind, Inductive nat_def), [], Var "e")) in
     let sym_term = normalize env ctx (App (App (App (id_symmetry, zero), zero), Refl zero)) in
     let _ = Printf.printf "sym_term PASSED\n" in
     let trans_term = App (App (App (App (App (id_transitivity, zero), zero), zero), Refl zero), Refl zero) in
@@ -551,6 +555,8 @@ let test () =
         let subst_norm = normalize env ctx subst_eq in
         let add_normal = normalize env ctx add_term in
         let len_normal = normalize env ctx (App (list_length, sample_list)) in
+        let bottom = normalize env ctx absurd in
+        Printf.printf "eval absurd = "; print_term bottom; print_endline "";
         Printf.printf "eval Tree.leaf = "; print_term leaf; print_endline "";
         Printf.printf "eval Nat.add(2,2) = "; print_term add_normal; print_endline "";
         Printf.printf "eval List.length(list) = "; print_term len_normal; print_endline "";

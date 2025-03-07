@@ -567,6 +567,7 @@ let rec console_loop env state =
   )
 
 let main () =
+  test ();
   let nat = Inductive { name = "Nat"; params = []; level = 0;
                         constrs = [(1, Universe 0); (2, Pi ("n", Inductive {name = "Nat"; params = []; level = 0; constrs = []; mutual_group = []}, Universe 0))];
                         mutual_group = [] } in
@@ -576,5 +577,5 @@ let main () =
   let state = initial_state target in
   ignore (console_loop env state)
 
-let () = test ()
+let () = main ()
 

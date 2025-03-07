@@ -173,34 +173,10 @@ and check env ctx t ty =
             raise (TypeError "Type mismatch"))
 
 and apply_case env ctx d p cases case ty args =
-    if (trace) then (Printf.printf "Applying case: "; print_term case; Printf.printf " to type: "; print_term ty; Printf.printf " with args: [";
-                     List.iter (fun arg -> print_term arg; print_string "; ") args;
-                     print_endline "]");
-    let rec apply ty args_acc remaining_args =
-    match ty, remaining_args with
-    | Pi (x, a, b), arg :: rest ->
-        let b' = subst x arg b in
-        let rec_arg =
-          if equal env ctx a (Inductive d) then
-            match arg with
-            | Constr (j, d', sub_args) when d.name = d'.name ->
-                let reduced = reduce env ctx (Elim (d, p, cases, arg)) in
-                if (trace) then (Printf.printf "Recursive arg for %s: " x; print_term reduced; print_endline "");
-                Some reduced
-            | _ -> None
-          else None
-        in
-        let new_args_acc = match rec_arg with | Some r -> r :: arg :: args_acc | None -> arg :: args_acc in
-        apply b' new_args_acc rest
-    | Pi (_, _, b), [] -> apply b args_acc []  (* Handle missing args by skipping to codomain *)
-    | _, [] ->
-        let rec apply_term t args =
-          match t, args with
-          | Lam (x, _, body), arg :: rest -> apply_term (subst x arg body) rest
-          | t, [] -> t
-          | _ -> raise (TypeError "Case application mismatch: too few arguments for lambda")
-        in apply_term case (List.rev args_acc)
-    | _ -> raise (TypeError "Constructor argument mismatch")
+    let rec apply ty args_acc = function
+      | Pi (x, _, b) :: arg :: rest -> apply (subst x arg b) (arg :: args_acc) rest
+      | Pi (_, _, b) :: [] -> apply b args_acc []
+      | _ -> List.fold_left (fun t a -> subst "_dummy" a t) case (List.rev args_acc)
     in apply ty [] args
 
 and reduce env ctx t =

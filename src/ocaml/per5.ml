@@ -387,7 +387,7 @@ let test_universe () =
     if trace then (Printf.printf "Universe test: Type0 : Type1 (passed)\n");
     Printf.printf "Universe Consistency PASSED\n"
 
-let test_non_lam_eta () =
+let test_inductive_eta () =
     let ctx = [("x", nat_ind); ("f", Pi ("x", nat_ind, nat_ind)); ("g", Pi ("x", nat_ind, nat_ind));
                ("eq", Id (nat_ind, App (Var "f", Var "x"), App (Var "g", Var "x")))] in
     let env = [("Nat", nat_def)] in
@@ -403,7 +403,7 @@ let test () =
     test_equal (); 
     test_equality_theorems ();
     test_eta ();
-(*  test_non_lam_eta (); *)
+(*  test_inductive_eta (); *)
     let ctx : context = [] in
     let zero = Constr (1, nat_def, []) in
     let one = Constr (2, nat_def, [zero]) in

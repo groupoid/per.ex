@@ -112,11 +112,15 @@ and infer env ctx t =
     | Refl a -> let a_ty = infer env ctx a in Id (a_ty, a, a)
     | Inductive d -> 
       List.iter (fun (_, ty) -> match infer env ctx ty with | Universe _ -> () | _ -> raise (TypeError "Inductive parameters must be types")) d.params;
+      let d_applied = Inductive { d with constrs = [] } in
       let ind_name = d.name in
       List.iter (fun (j, ty) -> 
         let rec check_pos ty' =
             match ty' with
             | Pi (x, a, b) -> 
+                (* Check that 'a' is well-typed *)
+                (try let _ = infer env ctx a in ()
+                 with TypeError msg -> raise (TypeError ("Invalid argument type in constructor " ^ string_of_int j ^ ": " ^ msg)));
                 if not (is_positive env ctx a ind_name) then 
                   raise (TypeError ("Negative occurrence in constructor " ^ string_of_int j));
                 check_pos b
@@ -367,16 +371,12 @@ let test_equality_theorems () =
     let sym_d = Lam ("x", a, Refl (Var "x")) in
     let sym = Lam ("x", a, Lam ("y", a, Lam ("p", Id (a, Var "x", Var "y"), J (a, Var "x", Var "y", sym_motive, sym_d, Var "p")))) in
     let sym_ty = Pi ("x", a, Pi ("y", a, Pi ("p", Id (a, Var "x", Var "y"), Id (a, Var "y", Var "x")))) in
-    print_string "Sym Left: "; print_term (infer env ctx sym); print_endline "";
-    print_string "Sym Right: "; print_term sym_ty; print_endline "";
     assert (equal env ctx (infer env ctx sym) sym_ty);
     (* Transitivity *)
     let trans_motive = Pi ("y", a, Pi ("z", a, Pi ("q", Id (a, Var "y", Var "z"), Id (a, Var "x", Var "z")))) in
     let trans_d = Lam ("y", a, Var "p") in
       let trans = Lam ("x", a, Lam ("y", a, Lam ("p", Id (a, Var "x", Var "y"), Lam ("z", a, Lam ("q", Id (a, Var "y", Var "z"), J (a, Var "y", Var "z", trans_motive, trans_d, Var "q")))))) in
     let trans_ty = Pi ("x", a, Pi ("y", a, Pi ("p", Id (a, Var "x", Var "y"), Pi ("z", a, Pi ("q", Id (a, Var "y", Var "z"), Id (a, Var "x", Var "z")))))) in
-    print_string "Trans Left: "; print_term (infer env ctx trans); print_endline "";
-    print_string "Trans Right: "; print_term trans_ty; print_endline "";
     assert (equal env ctx (infer env ctx trans) trans_ty);
     print_string "Identity System Equalities PASSED.\n"
 
@@ -450,6 +450,13 @@ let test_positivity () =
     try let _ = infer env empty_ctx (Inductive bad_def) in assert false with TypeError msg -> Printf.printf "Positivity check caught: %s\n" msg;
     print_string "Positivity Check PASSED.\n"
 
+let test_edge_cases () =
+    let env = [("Nat", nat_def)] in
+    try let _ = infer env empty_ctx (Inductive { name = "X"; params = []; level = 0;
+                   constrs = [(1, Pi ("x", Var "Y", Inductive { name = "X"; params = []; level = 0; constrs = [] }))] }) in
+        assert false with TypeError msg ->  Printf.printf "Caught unbound type: %s\n" msg;
+    print_string "Edge Cases PASSED.\n"
+
 let test () =
     test_universe ();
     test_equal (); 
@@ -458,6 +465,7 @@ let test () =
     test_inductive_eta ();
     test_inductive_eta_full ();
     test_positivity ();
+    test_edge_cases ();
     let ctx : context = [] in
     let zero = Constr (1, nat_def, []) in
     let one = Constr (2, nat_def, [zero]) in

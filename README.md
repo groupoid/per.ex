@@ -29,8 +29,8 @@ The type checker operates over a term syntax comprising:
 * `Id (A, a, b)`: Identity type, with `Refl` a and `J` eliminator.
 * `Inductive d`: Inductive types with constructors `Constr (j, d, args)` and eliminator `Ind`.
 
-The typing judgment `Γ ⊢ t : T` is defined via infer and check functions,
-with definitional equality `Γ ⊢ t = t'` implemented via normalization (reduce).
+The typing judgment `Γ ⊢ t : T` is defined via `infer` and `check` functions,
+with definitional equality `Γ ⊢ t = t'` implemented via `equal`.
 
 ## Syntax
 

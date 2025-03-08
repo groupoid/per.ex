@@ -93,7 +93,7 @@ aligning with CIC’s eliminator semantics.
 * `App/Constr/Elim`: Recurses on subterms.
 * `Inductive`: No substitution (assumes no free variables).
 
-**Theorem**. Substitution preserves typing (cf. [12], Lemma 2.1).
+**Theorem**. Substitution preserves typing (cf. [13], Lemma 2.1).
 If `Γ ⊢ t : T` and `Γ ⊢ s : A`, then `Γ ⊢ t[x := s] : T[x := s]`
 under suitable conditions on x.
 
@@ -188,7 +188,7 @@ paradoxes (e.g., Type : Type). It relies on infer,
 assuming its correctness, and throws errors for
 non-universe types, aligning with ITT’s stratification.
 
-**Theorem**: Universe checking is decidable (cf. [12]).
+**Theorem**: Universe checking is decidable (cf. [13]).
 If `ctx ⊢ t : Universe i`, then `check_universe env ctx t = i`.
 
 ### Check `check`
@@ -356,9 +356,9 @@ Context: []
 
 ## PTS
 
-[11]. de Bruijn, N. G. (1972). Lambda Calculus Notation with Nameless Dummies. <br>
-[12] <a href="https://core.ac.uk/download/pdf/82038778.pdf">The Calculus of Constructions</a> [Thierry Coquand, Gerard Huet]<br>
-[13]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.<br>
+[11]. N. G. de Bruijn. Lambda Calculus Notation with Nameless Dummies. 1972. <br>
+[12]. J.-Y. Girard. Interprétation fonctionnelle et élimination des coupures. 1972. <br>
+[13]. Thierry Coquand, Gerard Huet. <a href="https://core.ac.uk/download/pdf/82038778.pdf">The Calculus of Constructions</a>. 1988.<br>
 
 ## Author
 

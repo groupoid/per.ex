@@ -93,7 +93,7 @@ aligning with CIC’s eliminator semantics.
 * `App/Constr/Elim`: Recurses on subterms.
 * `Inductive`: No substitution (assumes no free variables).
 
-**Theorem**. Substitution preserves typing (cf. [4], Lemma 2.1).
+**Theorem**. Substitution preserves typing (cf. [12], Lemma 2.1).
 If `Γ ⊢ t : T` and `Γ ⊢ s : A`, then `Γ ⊢ t[x := s] : T[x := s]`
 under suitable conditions on x.
 

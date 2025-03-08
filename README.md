@@ -326,7 +326,7 @@ This is upheld by normalization and the absence of paradoxes such as Girard's [G
 * Formal Statement: `infer` and `check` terminate with a type or `TypeError`.
 * Status: Decidable, enhanced by termination checks on lambda expressions.
 
-## Game Console
+## Artefact
 
 ```
 https://per.groupoid.space/

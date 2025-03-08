@@ -105,7 +105,7 @@ under suitable conditions on x.
 
 ### Inductive Instantiation `apply_inductive d args`
 
-Instantiate an inductive type’s constructors with parameters, used only in `infer_Elim`.
+Instantiate an inductive type’s constructors with parameters, used only in `infer_Ind`.
 
 This function ensures type-level parametricity, critical for
 polymorphic inductives like List A. The fold-based substitution
@@ -125,24 +125,18 @@ Validate constructor arguments against its type.
 
 This function implements the dependent application rule for constructors,
 ensuring each argument satisfies the constructor’s domain type in sequence.
-The recursive descent mirrors the structure of Π-types, where ty is peeled
-layer by layer, and subst x arg b updates the type for the next argument.
-The accumulator (args_acc) is a design choice for potential reversal,
-though unused here, reflecting a forward-thinking approach to argument
-order preservation. The absence of explicit universe level checks
-assumes ty is well-formed from the inductive definition, delegating
-such verification to infer or check_elim. Complexity is O(n) in the
-number of arguments, with substitution dominating for large terms.
+The recursive descent mirrors the structure of `Pi` types, where `ty` is peeled
+layer by the layer, and `subst x arg b` updates the type for the next argument.
 
 * Recursively matches `ty` (a Pi chain) with `args`, checking each argument and substituting.
 * Returns the final type when all arguments are consumed.
 
 **Theorem**. Constructor typing is preserved (cf. [1], Section 4, Application Rule; [8], Section 4.3).
-If `ctx ⊢ c : Πx:A.B` and `ctx ⊢ a : A`, then `ctx ⊢ c a : B[x := a]`.
+If `ctx ⊢ c : Π (x:A), B` and `ctx ⊢ a : A`, then `ctx ⊢ c a : B[x := a]`.
 
-### Infer General Induction `infer_elim env ctx d p cases t'`
+### Infer General Induction `infer_Ind env ctx d p cases t'`
 
-Type-check an elimination (induction) over inductive type `d`.
+Type-check an dependent elimination (induction principle) over inductive type `d`.
 
 This function implements the dependent elimination rule of CIC,
 generalizing both computation (e.g., plus : `Nat → Nat → Nat`)
@@ -151,13 +145,13 @@ ensures the motive’s domain aligns with the target, while `compute_case_type`
 constructs the induction principle by injecting `App (p, var)`
 as the hypothesis type for recursive occurrences, mirroring the
 fixpoint-style eliminators of CIC [8]. The flexibility in result_ty
-avoids hardcoding it to D, supporting higher-type motives (e.g., Type0). The O(n·m) complexity (where n is the term size and m the number of cases) arises from substitution and equality checks, with debugging prints providing a window into the type checker’s reasoning, critical for dependent type systems where errors cascade.
+avoids hardcoding it to D, supporting higher-type motives (e.g., Type0).
 
 **Theorem**. Elimination preserves typing (cf. [8], Section 4.5; [1],
 Elimination Rule for Inductive Types). For an inductive type `D`
 with constructors `c_j`, if `ctx ⊢ t : D` and `ctx ⊢ P : D → Type_i`,
 and each case case_j has type `Πx:A_j.P(c_j x)` where `A_j` are
-the argument types of `c_j` (including recursive hypotheses), then `ctx ⊢ Elim(D, P, cases, t) : P t`.
+the argument types of `c_j` (including recursive hypotheses), then `ctx ⊢ Ind(D, P, cases, t) : P t`.
 
 ### Infer Equality Induction `infer_J env ctx ty a b c d p`
 
@@ -174,10 +168,7 @@ It type-checks the term `J (ty, a, b, c, d, p)` by ensuring
 and `p : Id(ty, a, b)` is the path being eliminated.
 The function constructs fresh variables to define the motive
 and base case types, checks each component, and returns `c a b p` (normalized),
-reflecting the result of applying the motive to the specific path. With O(n)
-complexity (where n is the term size) due to substitution and equality checks,
-it leverages trace prints (via print_J) for debugging, essential for tracing
-dependent type errors that ripple through equality reasoning.
+reflecting the result of applying the motive to the specific path. 
 
 **Theorem**. For an environment `env` and context `ctx`, given a type `A : Type_i`,
 terms `a : A`, `b : A`, a motive `C : Π (x:A), Π (y:A), Π(p:Id(A, x, y)),Type_j`,
@@ -220,9 +211,7 @@ The function leverages bidirectional typing: specific cases (e.g., `Lam`)
 check directly, while the default case synthesizes via infer and compares
 with a normalized ty, ensuring definitional equality (β-reduction).
 Completeness hinges on normalize terminating (ITT’s strong normalization)
-and equal capturing judgmental equality. Complexity is O(n·m) (term size n,
-reduction steps m), with debugging output exposing mismatches, crucial for
-dependent types where errors are subtle.
+and equal capturing judgmental equality.
 
 **Theorem**. Type checking is complete (cf. [1], Section III, Normalization; [8], Section 4.7).
 If `ctx ⊢ t : T` in the type theory, then `check env ctx t T` succeeds,
@@ -238,9 +227,7 @@ For Nat’s succ in plus, `ty = Πn:Nat.Nat`, `case = λk.λih.succ ih`, and `ar
 The recursive check `a = Inductive d` triggers for `n : Nat`, computing `ih = Elim(Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], n)`,
 ensuring `succ ih : Nat`. The nested apply_term handles multi-argument lambdas
 (e.g., k and ih), avoiding explicit uncurrying, while substitution preserves
-typing per CIC’s rules. Complexity is O(n·m) (term size n, recursive reduction
-depth m), with debugging prints tracing hypothesis generation, critical for
-verifying induction steps, e.g. `plus m (succ n) → succ (plus m n)`.
+typing per CIC’s rules.
 
 **Theorem**. Case application is sound (cf. [8],
 Section 4.5, Elimination Typing; [1], Section 5, Elimination Rule).
@@ -267,9 +254,15 @@ via β-reduction or inductive elimination, then `ctx ⊢ t' : T`.
 
 ### Normalization `normalize env ctx t`
 
-This function fully reduces a term t to its normal form by iteratively applying one-step reductions via reduce until no further changes occur, ensuring termination for well-typed terms.
+This function fully reduces a term t to its normal form by iteratively
+applying one-step reductions via reduce until no further changes occur,
+ensuring termination for well-typed terms.
 
-This function implements strong normalization, a cornerstone of ITT [1] and CIC [8], where all reduction sequences terminate. The fixpoint iteration relies on reduce’s one-step reductions (β for lambdas, ι for inductives), with equal acting as the termination oracle. For `plus 2 2`, it steps through `Elim (Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], succ (succ zero)) → succ (Elim(...)) → succ (succ (Elim(...))) → succ succ succ succ zero`, terminating at a constructor form. Complexity is O(n·m) (term size n, reduction steps m), where m is bounded by the term’s reduction length, guaranteed finite by CIC’s strong normalization [8, via 2]. Debugging prints are indispensable, tracing the path from `2 + 2 to 4`, aligning with CIC’s emphasis on computational transparency. The lack of explicit η-expansion or full cumulativity slightly weakens equality compared to Coq’s CIC, but termination holds.
+This function implements strong normalization, a cornerstone of ITT [1]
+and CIC [8], where all reduction sequences terminate. The fixpoint
+iteration relies on reduce’s one-step reductions (β for lambdas, ι
+for inductives), with equal acting as the termination oracle.
+For `plus 2 2`, it steps to `succ succ succ succ zero`, terminating at a constructor form.
 
 **Theorem**. Normalization terminates (cf. [1], Section III, Normalization Theorem; [8],
 Section 4.6, Strong Normalization via CoC). Every well-typed term in the system has a

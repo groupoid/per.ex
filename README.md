@@ -345,9 +345,9 @@ Context: []
 [3]. <a href="https://inria.hal.science/hal-01094195/document">Christine Paulin-Mohring. Introduction to the Calculus of Inductive Constructions.</a> 2014.<br>
 [4]. <a href="https://www.cs.cmu.edu/%7Efp/papers/mfps89.pdf">Frank Pfenning, Christine Paulin-Mohring. Inductively Defined Types in the Calculus of Construction</a> 1989.<br>
 [5]. <a href="https://www.cs.unibo.it/~sacerdot/PAPERS/sadhana.pdf"> A. Asperti, W. Ricciotti, C. Sacerdoti Coen, E. Tassi. A compact kernel for the calculus of inductive constructions.</a><br>
-[6]. Dybjer, P. Inductive families. 1997. <br>
-[7]. Harper, R., & Licata, D. Mechanizing metatheory in a logical framework. 2007.<br>
-[8]. Marc Bezem, Thierry Coquand, Peter Dybjer, Martín Escardó. <a href="https://arxiv.org/pdf/2212.03284">Type Theory with Explicit Universe Polymorphism</a> 2024.<br>
+[6]. P.Dybjer. Inductive families. 1997. <br>
+[7]. R.Harper, D.Licata. Mechanizing metatheory in a logical framework. 2007.<br>
+[8]. M.Bezem, T.Coquand, P.Dybjer, M.Escardó. <a href="https://arxiv.org/pdf/2212.03284">Type Theory with Explicit Universe Polymorphism</a> 2024.<br>
 
 ## MLTT
 

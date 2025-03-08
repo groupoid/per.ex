@@ -70,12 +70,6 @@ ensuring capture-avoiding substitution preserves meaning.
 Retrieve a variable’s type from the context.
 Context are the objects in the Substitutions categories.
 
-This linear search assumes a small context, which is inefficient
-for large ctx (O(n) complexity). A hash table (Second Lesson `per2.ml` of Tutorial)
-could optimize this to O(1), but the simplicity suits small-scale examples. Debugging
-output aids in tracing type errors, critical for dependent type
-systems where context mismatches are common.
-
 * Searches `ctx` for `(x, ty)` using `List.assoc`.
 * Returns `Some ty` if found, `None` otherwise.
 
@@ -238,7 +232,11 @@ yields a term of type `P(c args)`.
 
 Perform one-step β-reduction or inductive elimination.
 
-The function implements a one-step reduction strategy combining ITT’s β-reduction [1] with CIC’s ι-reduction for inductives [8]. The `App (Lam, arg)` case directly applies substitution, while `Elim (Constr)` uses `apply_case` to handle induction, ensuring recursive calls preserve typing via the motive p. The Pi case, though unconventional, supports type-level computation, consistent with CIC’s flexibility. Complexity is O(n) for simple β-steps, but O(n·m) for Elim (term size n, case application depth m), with debugging prints tracing each step, essential for verifying reductions like `plus 2 2 → 4`.
+The function implements a one-step reduction strategy combining ITT’s β-reduction [1]
+with CIC’s ι-reduction for inductives [8]. The `App (Lam, arg)` case directly applies
+substitution, while `Elim (Constr)` uses `apply_case` to handle induction,
+ensuring recursive calls preserve typing via the motive p. The `Pi` case,
+though unconventional, supports type-level computation, consistent with CIC’s flexibility. 
 
 * `App (Lam, arg)`: Substitutes arg into the lambda body (β-reduction).
 * `App (Pi, arg)`: Substitutes arg into the codomain (type-level β-reduction).

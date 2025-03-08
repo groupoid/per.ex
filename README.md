@@ -43,7 +43,7 @@ type term =
 
 ## Semantics
 
-### Syntactic Equality `equal env ctx t1 t2`
+### Syntactic Equality `equal`
 
 Structural equality of terms under an environment and context.
 
@@ -65,7 +65,7 @@ which includes β-reduction.
 equality holds if `a = a'` and `b[x := Var x] = b'[y := Var x]`,
 ensuring capture-avoiding substitution preserves meaning.
 
-### Context Variables Lookup `lookup_var ctx x`
+### Context Variables Lookup `lookup_var`
 
 Retrieve a variable’s type from the context.
 Context are the objects in the Substitutions categories.
@@ -77,7 +77,7 @@ Context are the objects in the Substitutions categories.
 of names (cf. [1], Section 3). If `ctx = Γ, x : A, Δ`,
 then `lookup_var ctx x = Some A`.
 
-### Substitution Calculus `subst x s t`
+### Substitution Calculus `subst`
 
 Substitute term `s` for variable `x` in term `t`.
 Substitutions are morphisms in Substitution categorties.
@@ -97,7 +97,7 @@ aligning with CIC’s eliminator semantics.
 If `Γ ⊢ t : T` and `Γ ⊢ s : A`, then `Γ ⊢ t[x := s] : T[x := s]`
 under suitable conditions on x.
 
-### Inductive Instantiation `apply_inductive d args`
+### Inductive Instantiation `apply_inductive`
 
 Instantiate an inductive type’s constructors with parameters, used only in `infer_Ind`.
 
@@ -113,7 +113,7 @@ but assumes args are well-typed, deferring validation to infer.
 If `D` is an inductive type with parameters `P`, then `D[P]` is
 well-formed with substituted constructors.
 
-### Infer Contstructor `infer_ctor env ctx ty args`
+### Infer Contstructor `infer_ctor`
 
 Validate constructor arguments against its type.
 
@@ -125,10 +125,10 @@ layer by the layer, and `subst x arg b` updates the type for the next argument.
 * Recursively matches `ty` (a Pi chain) with `args`, checking each argument and substituting.
 * Returns the final type when all arguments are consumed.
 
-**Theorem**. Constructor typing is preserved (cf. [1], Section 4, Application Rule; [8], Section 4.3).
+**Theorem**. Constructor typing is preserved (cf. [1], Section 4, Application Rule; [1], Section 4.3).
 If `ctx ⊢ c : Π (x:A), B` and `ctx ⊢ a : A`, then `ctx ⊢ c a : B[x := a]`.
 
-### Infer General Induction `infer_Ind env ctx d p cases t'`
+### Infer General Induction `infer_Ind`
 
 Type-check an dependent elimination (induction principle) over inductive type `d`.
 
@@ -138,16 +138,15 @@ and proof (e.g., `nat_elim : Πx:Nat.Type0`). The check `equal env ctx t_ty a`
 ensures the motive’s domain aligns with the target, while `compute_case_type`
 constructs the induction principle by injecting `App (p, var)`
 as the hypothesis type for recursive occurrences, mirroring the
-fixpoint-style eliminators of CIC [8]. The flexibility in result_ty
+fixpoint-style eliminators of CIC [1]. The flexibility in result_ty
 avoids hardcoding it to D, supporting higher-type motives (e.g., Type0).
 
-**Theorem**. Elimination preserves typing (cf. [8], Section 4.5; [1],
-Elimination Rule for Inductive Types). For an inductive type `D`
+**Theorem**. Elimination preserves typing (cf. [1], Section 4.5; Elimination Rule for Inductive Types). For an inductive type `D`
 with constructors `c_j`, if `ctx ⊢ t : D` and `ctx ⊢ P : D → Type_i`,
 and each case case_j has type `Πx:A_j.P(c_j x)` where `A_j` are
 the argument types of `c_j` (including recursive hypotheses), then `ctx ⊢ Ind(D, P, cases, t) : P t`.
 
-### Infer Equality Induction `infer_J env ctx ty a b c d p`
+### Infer Equality Induction `infer_J`
 
 Ensuring `J (ty, a, b, c, d, p)` has type `c a b p by` validating the motive,
 base case, and path against CIC’s equality elimination rule.
@@ -168,9 +167,9 @@ reflecting the result of applying the motive to the specific path.
 terms `a : A`, `b : A`, a motive `C : Π (x:A), Π (y:A), Π(p:Id(A, x, y)),Type_j`,
 a base case `d : Π(x:A), C x x (Refl x)`, and a path `p : Id(A, a, b)`, the
 term `J (A, a, b, C, d, p)` is well-typed with type `C a b p`. (Reference:
-CIC [8], Section 4.5; [1], Identity Type Elimination Rule).
+CIC [1], Section 4.5; Identity Type Elimination Rule).
 
-### Type Inference `infer env ctx t`
+### Type Inference `infer`
 
 Infer the type of term `t` in context `ctx` and environment `env`.
 
@@ -179,7 +178,7 @@ For `Pi` and `Lam`, universe levels ensure consistency
 critical for dependent elimination. Note that lambda agrument should be typed
 for easier type synthesis [13].
 
-### Check Universes `check_universe env ctx t`
+### Check Universes `check_universe`
 
 Ensure `t` is a universe, returning its level.
 Infers type of `t`, expects `Universe i`.
@@ -192,7 +191,7 @@ non-universe types, aligning with ITT’s stratification.
 **Theorem**: Universe checking is decidable (cf. [12]).
 If `ctx ⊢ t : Universe i`, then `check_universe env ctx t = i`.
 
-### Check `check env ctx t ty`
+### Check `check`
 
 Check that `t` has type `ty`.
 
@@ -207,15 +206,15 @@ with a normalized ty, ensuring definitional equality (β-reduction).
 Completeness hinges on normalize terminating (ITT’s strong normalization)
 and equal capturing judgmental equality.
 
-**Theorem**. Type checking is complete (cf. [1], Section III, Normalization; [8], Section 4.7).
+**Theorem**. Type checking is complete (cf. [1], Normalization).
 If `ctx ⊢ t : T` in the type theory, then `check env ctx t T` succeeds,
 assuming normalization and sound inference.
 
-### Branch Evaluation `apply_case env ctx d p cases case ty args`
+### Branch Evaluation `apply_case`
 
 Apply a case branch to constructor arguments, used only in `reduce`.
 
-This function realizes CIC’s ι-reduction for inductive eliminators [8], where
+This function realizes CIC’s ι-reduction for inductive eliminators [1], where
 a case branch is applied to constructor arguments, including recursive hypotheses.
 For Nat’s succ in plus, `ty = Πn:Nat.Nat`, `case = λk.λih.succ ih`, and `args = [n]`.
 The recursive check `a = Inductive d` triggers for `n : Nat`, computing `ih = Elim(Nat, Π_:Nat.Nat, [m; λk.λih.succ ih], n)`,
@@ -223,17 +222,16 @@ ensuring `succ ih : Nat`. The nested apply_term handles multi-argument lambdas
 (e.g., k and ih), avoiding explicit uncurrying, while substitution preserves
 typing per CIC’s rules.
 
-**Theorem**. Case application is sound (cf. [8],
-Section 4.5, Elimination Typing; [1], Section 5, Elimination Rule).
+**Theorem**. Case application is sound (cf. [1] Elimination Typing).
 If `case : Πx:A.P(c x)` and `args` match `A`, then `apply_case env ctx d p cases case ty args`
 yields a term of type `P(c args)`.
 
-### One-step β-reductor `reduce env ctx t`
+### One-step β-reductor `reduce`
 
 Perform one-step β-reduction or inductive elimination.
 
-The function implements a one-step reduction strategy combining ITT’s β-reduction [1]
-with CIC’s ι-reduction for inductives [8]. The `App (Lam, arg)` case directly applies
+The function implements a one-step reduction strategy combining ITT’s β-reduction 
+with CIC’s ι-reduction for inductives. The `App (Lam, arg)` case directly applies
 substitution, while `Elim (Constr)` uses `apply_case` to handle induction,
 ensuring recursive calls preserve typing via the motive p. The `Pi` case,
 though unconventional, supports type-level computation, consistent with CIC’s flexibility. 
@@ -246,25 +244,23 @@ though unconventional, supports type-level computation, consistent with CIC’s 
 * `Constr`: Reduces arguments.
 * Default: Returns unchanged.
 
-**Theorem**. Reduction preserves typing (cf. [1], Section III, Normalization Lemma;
-[8], Section 4.6, Subject Reduction). If `ctx ⊢ t : T` and `t → t'`
-via β-reduction or inductive elimination, then `ctx ⊢ t' : T`.
+**Theorem**. Reduction preserves typing (cf. [8], Normalization Lemma, Subject Reduction).
+If `ctx ⊢ t : T` and `t → t'` via β-reduction or inductive elimination, then `ctx ⊢ t' : T`.
 
-### Normalization `normalize env ctx t`
+### Normalization `normalize`
 
 This function fully reduces a term t to its normal form by iteratively
 applying one-step reductions via reduce until no further changes occur,
 ensuring termination for well-typed terms.
 
-This function implements strong normalization, a cornerstone of ITT [1]
-and CIC [8], where all reduction sequences terminate. The fixpoint
+This function implements strong normalization, a cornerstone of MLTT [9]
+and CIC [1], where all reduction sequences terminate. The fixpoint
 iteration relies on reduce’s one-step reductions (β for lambdas, ι
 for inductives), with equal acting as the termination oracle.
 For `plus 2 2`, it steps to `succ succ succ succ zero`, terminating at a constructor form.
 
-**Theorem**. Normalization terminates (cf. [1], Section III, Normalization Theorem; [8],
-Section 4.6, Strong Normalization via CoC). Every well-typed term in the system has a
-ormal form under β- and ι-reductions.
+**Theorem**. Normalization terminates (cf. [1]. Strong Normalization via CIC).
+Every well-typed term in the system has a ormal form under β- and ι-reductions.
 
 ## Conclusion
 
@@ -344,25 +340,25 @@ Context: []
 
 ## CIC
 
-[2]. <a href="https://www.cs.unibo.it/~sacerdot/PAPERS/sadhana.pdf"> A. Asperti, W. Ricciotti, C. Sacerdoti Coen, E. Tassi. A compact kernel for the calculus of inductive constructions.</a><br>
-[5]. <a href="https://inria.hal.science/hal-01094195/document">Christine Paulin-Mohring. Introduction to the Calculus of Inductive Constructions.</a><br>
-[6]. <a href="https://www.cs.cmu.edu/%7Efp/papers/mfps89.pdf">Frank Pfenning, Christine Paulin-Mohring. Inductively Defined Types in the Calculus of Construction</a><br>
-[7]. Asperti, A., Ricciotti, W., Coen, C. S., & Tassi, E. (2009). A compact kernel for the Calculus of Inductive Constructions.<br>
-[8]. Coquand, T., & Paulin-Mohring, C. (1990). Inductively defined types.<br>
-[9]. Dybjer, P. (1997). Inductive families.<br>
-[11]. Harper, R., & Licata, D. (2007). Mechanizing metatheory in a logical framework.<br>
-[12]. Marc Bezem, Thierry Coquand, Peter Dybjer, Martín Escardó. <a href="https://arxiv.org/pdf/2212.03284">Type Theory with Explicit Universe Polymorphism</a><br>
+[1]. Coquand, T., & Paulin-Mohring, C. (1990). Inductively defined types.<br>
+[2]. Christine Paulin-Mohring. Inductive Definitions in the System Coq. Rules and Properties. 1992.<br>
+[3]. <a href="https://inria.hal.science/hal-01094195/document">Christine Paulin-Mohring. Introduction to the Calculus of Inductive Constructions.</a><br>
+[4]. <a href="https://www.cs.cmu.edu/%7Efp/papers/mfps89.pdf">Frank Pfenning, Christine Paulin-Mohring. Inductively Defined Types in the Calculus of Construction</a><br>
+[5]. <a href="https://www.cs.unibo.it/~sacerdot/PAPERS/sadhana.pdf"> A. Asperti, W. Ricciotti, C. Sacerdoti Coen, E. Tassi. A compact kernel for the calculus of inductive constructions.</a><br>
+[6]. Dybjer, P. (1997). Inductive families.<br>
+[7]. Harper, R., & Licata, D. (2007). Mechanizing metatheory in a logical framework.<br>
+[8]. Marc Bezem, Thierry Coquand, Peter Dybjer, Martín Escardó. <a href="https://arxiv.org/pdf/2212.03284">Type Theory with Explicit Universe Polymorphism</a><br>
 
 ## MLTT
 
-[1]. Martin-Löf, P. (1984). Intuitionistic Type Theory.<br>
-[13]. Thierry Coquand. "An Algorithm for Type-Checking Dependent Types" (1996), published in Science of Computer Programming.<br>
+[9]. Martin-Löf, P. (1984). Intuitionistic Type Theory.<br>
+[10]. Thierry Coquand. "An Algorithm for Type-Checking Dependent Types" (1996), published in Science of Computer Programming.<br>
 
 ## PTS
 
-[3]. de Bruijn, N. G. (1972). Lambda Calculus Notation with Nameless Dummies. <br>
-[4] <a href="https://core.ac.uk/download/pdf/82038778.pdf">The Calculus of Constructions</a> [Thierry Coquand, Gerard Huet]<br>
-[10]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.<br>
+[11]. de Bruijn, N. G. (1972). Lambda Calculus Notation with Nameless Dummies. <br>
+[12] <a href="https://core.ac.uk/download/pdf/82038778.pdf">The Calculus of Constructions</a> [Thierry Coquand, Gerard Huet]<br>
+[13]. Girard, J.-Y. (1972). Interprétation fonctionnelle et élimination des coupures.<br>
 
 ## Author
 
